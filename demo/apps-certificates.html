@@ -651,15 +651,15 @@ p.tableblock.header { color: #6d6e71; }
 <div class="details">
 <span id="author" class="author">Francesco Minafra</span><br>
 <span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
-<span id="revnumber">version 7138384,</span>
-<span id="revdate">Sat Apr 4 17:10:52 2020 +0200</span>
+<span id="revnumber">version e8d2424,</span>
+<span id="revdate">Sat Apr 4 17:33:59 2020 +0200</span>
 </div>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
 <ul class="sectlevel1">
 <li><a href="#_introduction">1. Introduction</a></li>
 <li><a href="#_assumptions">2. Assumptions</a></li>
-<li><a href="#_deploying_sample_application">3. Deploying sample application</a></li>
+<li><a href="#_deploy_sample_application">3. Deploy sample application</a></li>
 </ul>
 </div>
 </div>
@@ -785,7 +785,7 @@ available certificates issued by <a href="https://letsencrypt.org/">Let&#8217;s 
 </div>
 </div>
 <div class="sect1">
-<h2 id="_deploying_sample_application">3. Deploying sample application</h2>
+<h2 id="_deploy_sample_application">3. Deploy sample application</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>We want to deploy a test application. Let&#8217;s choose the
@@ -798,7 +798,7 @@ image available from Red Hat Container Catalog:</p>
 <p>Let&#8217;s first create a project to host this application deployment:</p>
 <div class="listingblock">
 <div class="content">
-<pre class="rouge highlight nowrap"><code data-lang="bash">oc new-project nginx-test</code></pre>
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc new-project nginx-test</code></pre>
 </div>
 </div>
 </li>
@@ -814,7 +814,7 @@ nginx           image-registry.openshift-image-registry.svc:5000/openshift/nginx
 </li>
 <li>
 <p>Deploy a simple static website using the source on github and the existing
-nginx:1.12 imagestream as builder image:</p>
+<code>nginx:1.12</code> imagestream as builder image:</p>
 <div class="listingblock">
 <div class="content">
 <pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc new-app nginx:1.12~https://github.com/sclorg/nginx-ex.git
@@ -822,7 +822,11 @@ nginx:1.12 imagestream as builder image:</p>
 
     Nginx 1.12
     <span class="nt">----------</span>
-    Nginx is a web server and a reverse proxy server <span class="k">for </span>HTTP, SMTP, POP3 and IMAP protocols, with a strong focus on high concurrency, performance and low memory usage. The container image provides a containerized packaging of the nginx 1.12 daemon. The image can be used as a base image <span class="k">for </span>other applications based on nginx 1.12 web server. Nginx server image can be extended using source-to-image tool.
+    Nginx is a web server and a reverse proxy server <span class="k">for </span>HTTP, SMTP, POP3 and IMAP protocols,
+    with a strong focus on high concurrency, performance and low memory usage. The container
+    image provides a containerized packaging of the nginx 1.12 daemon. The image can be used
+    as a base image <span class="k">for </span>other applications based on nginx 1.12 web server. Nginx server image
+    can be extended using source-to-image tool.
 
     Tags: builder, nginx, rh-nginx112
 
@@ -840,28 +844,158 @@ nginx:1.12 imagestream as builder image:</p>
     service <span class="s2">"nginx-ex"</span> created
 <span class="nt">--</span><span class="o">&gt;</span> Success
     Build scheduled, use <span class="s1">'oc logs -f bc/nginx-ex'</span> to track its progress.
-    Application is not exposed. You can expose services to the outside world by executing one or more of the commands below:
+    Application is not exposed. You can expose services to the outside world by executing
+    one or more of the commands below:
      <span class="s1">'oc expose svc/nginx-ex'</span>
-    Run <span class="s1">'oc status'</span> to view your app.
-
-<span class="nv">$ </span>oc logs <span class="nt">-f</span> bc/nginx-ex
+    Run <span class="s1">'oc status'</span> to view your app.</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Check the build logs until the resulting image is successfully pushed to the
+internal registry:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc logs <span class="nt">-f</span> bc/nginx-ex
 ...
-Successfully pushed image-registry.openshift-image-registry.svc:5000/nginx-test/nginx-ex@sha256:129597eaf2a9c5c5e6d1bd51de63a257859ebec08241bd04d084e8d3f2283bc7
-Push successful
-
-<span class="nv">$ </span>oc get pods
+Successfully pushed image-registry.openshift-image-registry.svc:5000/nginx-test/nginx-ex@sha256:129597
+Push successful</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Check the pods in the project until the deployment is complete and the application
+pod is running:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get pods
 NAME                READY   STATUS      RESTARTS   AGE
 nginx-ex-1-build    0/1     Completed   0          108s
 nginx-ex-1-deploy   0/1     Completed   0          42s
-nginx-ex-1-ksgvj    1/1     Running     0          34s
+nginx-ex-1-ksgvj    1/1     Running     0          34s</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Get info about the domain suffix that the ingress controller
+appends to the exposed application routes, also known as the
+<strong>router canonical host name</strong>:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get ingress.config cluster <span class="nt">-o</span> yaml | <span class="nb">grep </span>domain
+  domain: apps.ocp4cluster.example.com</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Expose a route for the application using a custom host name:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc expose svc/nginx-ex <span class="nt">--hostname</span> website.apps.ocp4cluster.example.com
+  route.route.openshift.io/nginx-ex exposed</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Notice that the service for our example application is listening on both port
+8080-tcp (http) and 8443-tcp (https).</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get service nginx-ex <span class="nt">-o</span> yaml
 
-<span class="nv">$ </span>oc get ingress.config cluster <span class="nt">-o</span> yaml | <span class="nb">grep </span>domain
-  domain: apps.ocp4cluster.example.com
-
-<span class="nv">$ </span>oc expose svc/nginx-ex <span class="nt">--hostname</span> website.apps.ocp4cluster.example.com
-  route.route.openshift.io/nginx-ex exposed
-
-<span class="nv">$ </span>curl <span class="nt">--head</span> website.apps.ocp4cluster.example.com
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    openshift.io/generated-by: OpenShiftNewApp
+  creationTimestamp: <span class="s2">"2020-04-04T15:24:06Z"</span>
+  labels:
+    app: nginx-ex
+  name: nginx-ex
+  namespace: nginx-test
+  resourceVersion: <span class="s2">"4448474"</span>
+  selfLink: /api/v1/namespaces/nginx-test/services/nginx-ex
+  uid: 52871cc2-7688-11ea-882b-0299395f75b4
+spec:
+  clusterIP: 172.30.219.132
+  ports:
+  - name: 8080-tcp
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  - name: 8443-tcp
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: nginx-ex
+    deploymentconfig: nginx-ex
+  sessionAffinity: None
+  <span class="nb">type</span>: ClusterIP
+status:
+  loadBalancer: <span class="o">{}</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Notice that the route created with the expose command is listening only on port
+80-tcp, because the target port is 8080-tcp on the service side.</p>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Get more info about the <code>route</code> resource with the command: <code>oc explain route.spec.port</code></p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get route nginx-ex <span class="nt">-o</span> yaml
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  creationTimestamp: <span class="s2">"2020-04-04T15:30:35Z"</span>
+  labels:
+    app: nginx-ex
+  name: nginx-ex
+  namespace: nginx-test
+  resourceVersion: <span class="s2">"4451194"</span>
+  selfLink: /apis/route.openshift.io/v1/namespaces/nginx-test/routes/nginx-ex
+  uid: 3a6c5102-7689-11ea-8459-0a580a800024
+spec:
+  host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
+  port:
+    targetPort: 8080-tcp
+  subdomain: <span class="s2">""</span>
+  to:
+    kind: Service
+    name: nginx-ex
+    weight: 100
+  wildcardPolicy: None
+status:
+  ingress:
+  - conditions:
+    - lastTransitionTime: <span class="s2">"2020-04-04T15:30:35Z"</span>
+      status: <span class="s2">"True"</span>
+      <span class="nb">type</span>: Admitted
+    host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
+    routerCanonicalHostname: apps.cluster-cfb8.sandbox1840.opentlc.com
+    routerName: default
+    wildcardPolicy: None</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Check that the route is actually working:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>curl <span class="nt">--head</span> website.apps.ocp4cluster.example.com
 HTTP/1.1 200 OK
 Server: nginx/1.12.1
 Date: Sat, 04 Apr 2020 15:31:07 GMT
@@ -882,8 +1016,8 @@ Cache-control: private</code></pre>
 </div>
 <div id="footer">
 <div id="footer-text">
-Version 7138384<br>
-Last updated 2020-04-04 17:33:22 +0200
+Version e8d2424<br>
+Last updated 2020-04-04 20:59:52 +0200
 </div>
 </div>
 <style>

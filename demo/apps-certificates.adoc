@@ -70,7 +70,7 @@ per-application configuration of secure routes.
 * The availability of commercial *SSL* certificates is simulated using the freely
 available certificates issued by https://letsencrypt.org/[Let's Encrypt]
 
-== Deploying sample application
+== Deploy sample application
 
 We want to deploy a test application. Let's choose the
 https://access.redhat.com/containers/?tab=images#/registry.access.redhat.com/rhel8/nginx-116[Nginx]
@@ -78,9 +78,9 @@ image available from Red Hat Container Catalog:
 
 . Let's first create a project to host this application deployment:
 +
-[source%nowrap,bash]
+[source%nowrap,sh]
 ----
-oc new-project nginx-test
+$ oc new-project nginx-test
 ----
 +
 . Check which versions of nginx image(streams) are already available in the OpenShift
@@ -93,7 +93,7 @@ nginx           image-registry.openshift-image-registry.svc:5000/openshift/nginx
 ----
 +
 . Deploy a simple static website using the source on github and the existing
-nginx:1.12 imagestream as builder image:
+`nginx:1.12` imagestream as builder image:
 +
 [source%nowrap,sh]
 ----
@@ -102,7 +102,11 @@ $ oc new-app nginx:1.12~https://github.com/sclorg/nginx-ex.git
 
     Nginx 1.12
     ----------
-    Nginx is a web server and a reverse proxy server for HTTP, SMTP, POP3 and IMAP protocols, with a strong focus on high concurrency, performance and low memory usage. The container image provides a containerized packaging of the nginx 1.12 daemon. The image can be used as a base image for other applications based on nginx 1.12 web server. Nginx server image can be extended using source-to-image tool.
+    Nginx is a web server and a reverse proxy server for HTTP, SMTP, POP3 and IMAP protocols,
+    with a strong focus on high concurrency, performance and low memory usage. The container
+    image provides a containerized packaging of the nginx 1.12 daemon. The image can be used
+    as a base image for other applications based on nginx 1.12 web server. Nginx server image
+    can be extended using source-to-image tool.
 
     Tags: builder, nginx, rh-nginx112
 
@@ -120,27 +124,141 @@ $ oc new-app nginx:1.12~https://github.com/sclorg/nginx-ex.git
     service "nginx-ex" created
 --> Success
     Build scheduled, use 'oc logs -f bc/nginx-ex' to track its progress.
-    Application is not exposed. You can expose services to the outside world by executing one or more of the commands below:
+    Application is not exposed. You can expose services to the outside world by executing
+    one or more of the commands below:
      'oc expose svc/nginx-ex'
     Run 'oc status' to view your app.
-
+----
++
+. Check the build logs until the resulting image is successfully pushed to the
+internal registry:
++
+[source%nowrap,sh]
+----
 $ oc logs -f bc/nginx-ex
 ...
-Successfully pushed image-registry.openshift-image-registry.svc:5000/nginx-test/nginx-ex@sha256:129597eaf2a9c5c5e6d1bd51de63a257859ebec08241bd04d084e8d3f2283bc7
+Successfully pushed image-registry.openshift-image-registry.svc:5000/nginx-test/nginx-ex@sha256:129597
 Push successful
-
+----
++
+. Check the pods in the project until the deployment is complete and the application
+pod is running:
++
+[source%nowrap,sh]
+----
 $ oc get pods
 NAME                READY   STATUS      RESTARTS   AGE
 nginx-ex-1-build    0/1     Completed   0          108s
 nginx-ex-1-deploy   0/1     Completed   0          42s
 nginx-ex-1-ksgvj    1/1     Running     0          34s
-
+----
++
+. Get info about the domain suffix that the ingress controller
+appends to the exposed application routes, also known as the
+*router canonical host name*:
++
+[source%nowrap,sh]
+----
 $ oc get ingress.config cluster -o yaml | grep domain
   domain: apps.ocp4cluster.example.com
-
+----
++
+. Expose a route for the application using a custom host name:
++
+[source%nowrap,sh]
+----
 $ oc expose svc/nginx-ex --hostname website.apps.ocp4cluster.example.com
   route.route.openshift.io/nginx-ex exposed
+----
++
+. Notice that the service for our example application is listening on both port
+8080-tcp (http) and 8443-tcp (https).
++
+[source%nowrap,sh]
+----
+$ oc get service nginx-ex -o yaml
 
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    openshift.io/generated-by: OpenShiftNewApp
+  creationTimestamp: "2020-04-04T15:24:06Z"
+  labels:
+    app: nginx-ex
+  name: nginx-ex
+  namespace: nginx-test
+  resourceVersion: "4448474"
+  selfLink: /api/v1/namespaces/nginx-test/services/nginx-ex
+  uid: 52871cc2-7688-11ea-882b-0299395f75b4
+spec:
+  clusterIP: 172.30.219.132
+  ports:
+  - name: 8080-tcp
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  - name: 8443-tcp
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app: nginx-ex
+    deploymentconfig: nginx-ex
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+----
++
+. Notice that the route created with the expose command is listening only on port
+80-tcp, because the target port is 8080-tcp on the service side.
++
+[NOTE]
+====
+Get more info about the `route` resource with the command: `oc explain route.spec.port`
+====
++
+[source%nowrap,sh]
+----
+$ oc get route nginx-ex -o yaml
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  creationTimestamp: "2020-04-04T15:30:35Z"
+  labels:
+    app: nginx-ex
+  name: nginx-ex
+  namespace: nginx-test
+  resourceVersion: "4451194"
+  selfLink: /apis/route.openshift.io/v1/namespaces/nginx-test/routes/nginx-ex
+  uid: 3a6c5102-7689-11ea-8459-0a580a800024
+spec:
+  host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
+  port:
+    targetPort: 8080-tcp
+  subdomain: ""
+  to:
+    kind: Service
+    name: nginx-ex
+    weight: 100
+  wildcardPolicy: None
+status:
+  ingress:
+  - conditions:
+    - lastTransitionTime: "2020-04-04T15:30:35Z"
+      status: "True"
+      type: Admitted
+    host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
+    routerCanonicalHostname: apps.cluster-cfb8.sandbox1840.opentlc.com
+    routerName: default
+    wildcardPolicy: None
+----
++
+. Check that the route is actually working:
++
+[source%nowrap,sh]
+----
 $ curl --head website.apps.ocp4cluster.example.com
 HTTP/1.1 200 OK
 Server: nginx/1.12.1
