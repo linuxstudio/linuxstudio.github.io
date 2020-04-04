@@ -645,19 +645,62 @@ p.tableblock.header { color: #6d6e71; }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
-<body class="article">
+<body class="article toc2 toc-left">
 <div id="header">
 <h1>OCP4 Certificates Configuration</h1>
 <div class="details">
 <span id="author" class="author">Francesco Minafra</span><br>
 <span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
-<span id="revnumber">version 4251831,</span>
-<span id="revdate">Sat Apr 4 11:13:41 2020 +0200</span>
+<span id="revnumber">version 6da0822,</span>
+<span id="revdate">Sat Apr 4 12:00:53 2020 +0200</span>
+</div>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#_introduction">1. Introduction</a></li>
+<li><a href="#_assumptions">2. Assumptions</a></li>
+<li><a href="#_deploying_sample_application">3. Deploying sample application</a></li>
+</ul>
 </div>
 </div>
 <div id="content">
+<div class="sect1">
+<h2 id="_introduction">1. Introduction</h2>
+<div class="sectionbody">
 <div class="paragraph">
-<p>We should separate certificate management topics considering that:</p>
+<p>In this section we would like to discuss how to manage certificates that are
+used to encrypt connections to the various components (both infrastructure and
+  applications) of an OpenShift 4 cluster.</p>
+</div>
+<div class="paragraph">
+<p>The official documentation provides the first source of information about this subject:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://docs.openshift.com/container-platform/4.2/networking/routes/secured-routes.html">Secured routes: re-encrypt and edge</a></p>
+</li>
+<li>
+<p><a href="https://docs.openshift.com/container-platform/4.2/authentication/certificates/replacing-default-ingress-certificate.html">Replacing the default ingress certificate</a></p>
+</li>
+<li>
+<p><a href="https://docs.openshift.com/container-platform/4.2/authentication/certificates/api-server.html">Adding API server certificates</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>There are additional sources which provide more detailed descriptions on how to
+perform manually the configurations. One such reference is the blog post:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><a href="https://blog.openshift.com/requesting-and-installing-lets-encrypt-certificates-for-openshift-4/">Requesting and installing Let&#8217;s Encrypt Certificates for OpenShift 4</a></p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>We should separate certificate management discussion considering that:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -704,10 +747,54 @@ certificate, users will get errors during the login to the API server.</p>
 </table>
 </div>
 </div>
+</div>
+<div class="sect1">
+<h2 id="_assumptions">2. Assumptions</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In order to demonstrate with examples how to perform the certificate-related
+configurations, we will assume that:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A cluster installed with <a href="https://docs.openshift.com/container-platform/4.2/welcome/index.html">OCP 4.2</a> is available
+and the reader has <code>cluster-admin</code> access credentials.</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Access to the cluster will be done using both a bastion host with the <code>oc</code> client
+binary installed and via the web console</p>
+</li>
+<li>
+<p>For the purpose of our demonstration, an <a href="https://docs.openshift.com/container-platform/4.2/installing/installing_aws/installing-aws-default.html">OCP4 cluster installed on AWS</a> will be used</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>A sample application (an nginx web server) is deployed to demonstrate the
+per-application configuration of secure routes.</p>
+</li>
+<li>
+<p>The availability of commercial <strong>SSL</strong> certificates is simulated using the freely
+available certificates issued by <a href="https://letsencrypt.org/">Let&#8217;s Encrypt</a></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_deploying_sample_application">3. Deploying sample application</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+</div>
 <div id="footer">
 <div id="footer-text">
-Version 4251831<br>
-Last updated 2020-04-04 11:50:28 +0200
+Version 6da0822<br>
+Last updated 2020-04-04 14:33:54 +0200
 </div>
 </div>
 </body>

@@ -10,7 +10,26 @@ Francesco Minafra <francesco.minafra@redhat.com>
 :stylesheet: colony.css
 // :stylesheet: asciidoctor.css
 
-We should separate certificate management topics considering that:
+:sectnums:
+
+== Introduction
+
+In this section we would like to discuss how to manage certificates that are
+used to encrypt connections to the various components (both infrastructure and
+  applications) of an OpenShift 4 cluster.
+
+The official documentation provides the first source of information about this subject:
+
+* https://docs.openshift.com/container-platform/4.2/networking/routes/secured-routes.html[Secured routes: re-encrypt and edge]
+* https://docs.openshift.com/container-platform/4.2/authentication/certificates/replacing-default-ingress-certificate.html[Replacing the default ingress certificate]
+* https://docs.openshift.com/container-platform/4.2/authentication/certificates/api-server.html[Adding API server certificates]
+
+There are additional sources which provide more detailed descriptions on how to
+perform manually the configurations. One such reference is the blog post:
+
+* https://blog.openshift.com/requesting-and-installing-lets-encrypt-certificates-for-openshift-4/[Requesting and installing Let's Encrypt Certificates for OpenShift 4]
+
+We should separate certificate management discussion considering that:
 
 * A dedicated certificate is used for securing access to the API endpoint
 * A Wildcard domain certificate is used for securing access to routes that do not
@@ -35,3 +54,20 @@ server makes use of the wildcard domain certificate assigned to the default ingr
 controller. Unless the OAuth server is also configured with a valid trusted
 certificate, users will get errors during the login to the API server.
 ====
+
+== Assumptions
+
+In order to demonstrate with examples how to perform the certificate-related
+configurations, we will assume that:
+
+* A cluster installed with https://docs.openshift.com/container-platform/4.2/welcome/index.html[OCP 4.2] is available
+and the reader has `cluster-admin` access credentials.
+** Access to the cluster will be done using both a bastion host with the `oc` client
+binary installed and via the web console
+** For the purpose of our demonstration, an https://docs.openshift.com/container-platform/4.2/installing/installing_aws/installing-aws-default.html[OCP4 cluster installed on AWS] will be used
+* A sample application (an nginx web server) is deployed to demonstrate the
+per-application configuration of secure routes.
+* The availability of commercial *SSL* certificates is simulated using the freely
+available certificates issued by https://letsencrypt.org/[Let's Encrypt]
+
+== Deploying sample application
