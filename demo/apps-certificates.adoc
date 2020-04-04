@@ -1,0 +1,37 @@
+= OCP4 Certificates Configuration
+Francesco Minafra <francesco.minafra@redhat.com>
+:revnumber: {lastcommitid}
+:revdate: {lastcommitdate}
+:data-uri:
+:toc: left
+:source-highlighter: rouge
+:icons: font
+:stylesdir: ../stylesheets
+:stylesheet: colony.css
+// :stylesheet: asciidoctor.css
+
+We should separate certificate management topics considering that:
+
+* A dedicated certificate is used for securing access to the API endpoint
+* A Wildcard domain certificate is used for securing access to routes that do not
+make use of dedicated application-specific certificates
+* Individual applications may use specific certificates different from the wildcard one
+* Normally the web console, the OAuth server and the dashboards for
+Monitoring/Logging make use of routes that are created by OpenShift using the
+wildcard DNS entry pointing to the ingress load balancer. These routes are then
+normally secured using the wildcard domain certificate assigned to the default
+ingress controller. Using dedicated certificates for the single components is
+currently not supported
+
+[CAUTION]
+====
+It may happen that the IT staff of the organization adopting OCP doesn't allow
+the creation of a wildcard certificate used to serve all the routes for
+applications that are not yet deployed. This may be considered a security issue,
+and therefore only the API certificate may be issued by the organization CA.
+This practice may lead to errors while authenticating to the API endpoint, because
+during the authentication also the OAuth server is involved. Normally the OAuth
+server makes use of the wildcard domain certificate assigned to the default ingress
+controller. Unless the OAuth server is also configured with a valid trusted
+certificate, users will get errors during the login to the API server.
+====
