@@ -1,0 +1,19 @@
+= OpenShift Container Platform 4 Topics
+//Francesco Minafra <francesco.minafra@redhat.com>
+//:revnumber: {lastcommitid}
+//:revdate: {lastcommitdate}
+:data-uri:
+// :toc: left
+:source-highlighter: rouge
+:icons: font
+:stylesdir: stylesheets
+:stylesheet: colony.css
+// :stylesheet: asciidoctor.css
+
+* Installing certificates to secure traffic for apps
+* Best practice for setting up Load Balancers
+* Setting up `fluentd` with `secure_forward`
+* Customizing Prometheus Alert Manager In OCP4
+* Setting up External Grafana pointing to internal OCP4 Prometheus
+* Getting metrics out of OCP4 cluster (alternative to Prometheus federation)
+* Update process for OCP4
