@@ -651,8 +651,8 @@ p.tableblock.header { color: #6d6e71; }
 <div class="details">
 <span id="author" class="author">Francesco Minafra</span><br>
 <span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
-<span id="revnumber">version 6da0822,</span>
-<span id="revdate">Sat Apr 4 12:00:53 2020 +0200</span>
+<span id="revnumber">version 7138384,</span>
+<span id="revdate">Sat Apr 4 17:10:52 2020 +0200</span>
 </div>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
@@ -787,15 +787,315 @@ available certificates issued by <a href="https://letsencrypt.org/">Let&#8217;s 
 <div class="sect1">
 <h2 id="_deploying_sample_application">3. Deploying sample application</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>We want to deploy a test application. Let&#8217;s choose the
+<a href="https://access.redhat.com/containers/?tab=images#/registry.access.redhat.com/rhel8/nginx-116">Nginx</a>
+image available from Red Hat Container Catalog:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Let&#8217;s first create a project to host this application deployment:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="bash">oc new-project nginx-test</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Check which versions of nginx image(streams) are already available in the OpenShift
+integrated registry:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get is <span class="nt">-n</span> openshift | <span class="nb">grep </span>nginx
+nginx           image-registry.openshift-image-registry.svc:5000/openshift/nginx    1.10,1.12,latest</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Deploy a simple static website using the source on github and the existing
+nginx:1.12 imagestream as builder image:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc new-app nginx:1.12~https://github.com/sclorg/nginx-ex.git
+<span class="nt">--</span><span class="o">&gt;</span> Found image fc13148 <span class="o">(</span>5 months old<span class="o">)</span> <span class="k">in </span>image stream <span class="s2">"openshift/nginx"</span> under tag <span class="s2">"1.12"</span> <span class="k">for</span> <span class="s2">"nginx:1.12"</span>
 
+    Nginx 1.12
+    <span class="nt">----------</span>
+    Nginx is a web server and a reverse proxy server <span class="k">for </span>HTTP, SMTP, POP3 and IMAP protocols, with a strong focus on high concurrency, performance and low memory usage. The container image provides a containerized packaging of the nginx 1.12 daemon. The image can be used as a base image <span class="k">for </span>other applications based on nginx 1.12 web server. Nginx server image can be extended using source-to-image tool.
+
+    Tags: builder, nginx, rh-nginx112
+
+    <span class="k">*</span> A <span class="nb">source </span>build using <span class="nb">source </span>code from https://github.com/sclorg/nginx-ex.git will be created
+      <span class="k">*</span> The resulting image will be pushed to image stream tag <span class="s2">"nginx-ex:latest"</span>
+      <span class="k">*</span> Use <span class="s1">'oc start-build'</span> to trigger a new build
+    <span class="k">*</span> This image will be deployed <span class="k">in </span>deployment config <span class="s2">"nginx-ex"</span>
+    <span class="k">*</span> Ports 8080/tcp, 8443/tcp will be load balanced by service <span class="s2">"nginx-ex"</span>
+      <span class="k">*</span> Other containers can access this service through the <span class="nb">hostname</span> <span class="s2">"nginx-ex"</span>
+
+<span class="nt">--</span><span class="o">&gt;</span> Creating resources ...
+    imagestream.image.openshift.io <span class="s2">"nginx-ex"</span> created
+    buildconfig.build.openshift.io <span class="s2">"nginx-ex"</span> created
+    deploymentconfig.apps.openshift.io <span class="s2">"nginx-ex"</span> created
+    service <span class="s2">"nginx-ex"</span> created
+<span class="nt">--</span><span class="o">&gt;</span> Success
+    Build scheduled, use <span class="s1">'oc logs -f bc/nginx-ex'</span> to track its progress.
+    Application is not exposed. You can expose services to the outside world by executing one or more of the commands below:
+     <span class="s1">'oc expose svc/nginx-ex'</span>
+    Run <span class="s1">'oc status'</span> to view your app.
+
+<span class="nv">$ </span>oc logs <span class="nt">-f</span> bc/nginx-ex
+...
+Successfully pushed image-registry.openshift-image-registry.svc:5000/nginx-test/nginx-ex@sha256:129597eaf2a9c5c5e6d1bd51de63a257859ebec08241bd04d084e8d3f2283bc7
+Push successful
+
+<span class="nv">$ </span>oc get pods
+NAME                READY   STATUS      RESTARTS   AGE
+nginx-ex-1-build    0/1     Completed   0          108s
+nginx-ex-1-deploy   0/1     Completed   0          42s
+nginx-ex-1-ksgvj    1/1     Running     0          34s
+
+<span class="nv">$ </span>oc get ingress.config cluster <span class="nt">-o</span> yaml | <span class="nb">grep </span>domain
+  domain: apps.ocp4cluster.example.com
+
+<span class="nv">$ </span>oc expose svc/nginx-ex <span class="nt">--hostname</span> website.apps.ocp4cluster.example.com
+  route.route.openshift.io/nginx-ex exposed
+
+<span class="nv">$ </span>curl <span class="nt">--head</span> website.apps.ocp4cluster.example.com
+HTTP/1.1 200 OK
+Server: nginx/1.12.1
+Date: Sat, 04 Apr 2020 15:31:07 GMT
+Content-Type: text/html
+Content-Length: 37451
+Last-Modified: Sat, 04 Apr 2020 15:24:58 GMT
+ETag: <span class="s2">"5e88a6ca-924b"</span>
+Accept-Ranges: bytes
+Set-Cookie: <span class="nv">412d7c10008752e4b9932459e3e64d55</span><span class="o">=</span>92df654ecafe8ab745d16c244970e652<span class="p">;</span> <span class="nv">path</span><span class="o">=</span>/<span class="p">;</span> HttpOnly
+Cache-control: private</code></pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Version 6da0822<br>
-Last updated 2020-04-04 14:33:54 +0200
+Version 7138384<br>
+Last updated 2020-04-04 17:33:22 +0200
 </div>
 </div>
+<style>
+pre.rouge table td { padding: 5px; }
+pre.rouge table pre { margin: 0; }
+pre.rouge .cm {
+  color: #999988;
+  font-style: italic;
+}
+pre.rouge .cp {
+  color: #999999;
+  font-weight: bold;
+}
+pre.rouge .c1 {
+  color: #999988;
+  font-style: italic;
+}
+pre.rouge .cs {
+  color: #999999;
+  font-weight: bold;
+  font-style: italic;
+}
+pre.rouge .c, pre.rouge .ch, pre.rouge .cd, pre.rouge .cpf {
+  color: #999988;
+  font-style: italic;
+}
+pre.rouge .err {
+  color: #a61717;
+  background-color: #e3d2d2;
+}
+pre.rouge .gd {
+  color: #000000;
+  background-color: #ffdddd;
+}
+pre.rouge .ge {
+  color: #000000;
+  font-style: italic;
+}
+pre.rouge .gr {
+  color: #aa0000;
+}
+pre.rouge .gh {
+  color: #999999;
+}
+pre.rouge .gi {
+  color: #000000;
+  background-color: #ddffdd;
+}
+pre.rouge .go {
+  color: #888888;
+}
+pre.rouge .gp {
+  color: #555555;
+}
+pre.rouge .gs {
+  font-weight: bold;
+}
+pre.rouge .gu {
+  color: #aaaaaa;
+}
+pre.rouge .gt {
+  color: #aa0000;
+}
+pre.rouge .kc {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kd {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kn {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kp {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kr {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kt {
+  color: #445588;
+  font-weight: bold;
+}
+pre.rouge .k, pre.rouge .kv {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .mf {
+  color: #009999;
+}
+pre.rouge .mh {
+  color: #009999;
+}
+pre.rouge .il {
+  color: #009999;
+}
+pre.rouge .mi {
+  color: #009999;
+}
+pre.rouge .mo {
+  color: #009999;
+}
+pre.rouge .m, pre.rouge .mb, pre.rouge .mx {
+  color: #009999;
+}
+pre.rouge .sb {
+  color: #d14;
+}
+pre.rouge .sc {
+  color: #d14;
+}
+pre.rouge .sd {
+  color: #d14;
+}
+pre.rouge .s2 {
+  color: #d14;
+}
+pre.rouge .se {
+  color: #d14;
+}
+pre.rouge .sh {
+  color: #d14;
+}
+pre.rouge .si {
+  color: #d14;
+}
+pre.rouge .sx {
+  color: #d14;
+}
+pre.rouge .sr {
+  color: #009926;
+}
+pre.rouge .s1 {
+  color: #d14;
+}
+pre.rouge .ss {
+  color: #990073;
+}
+pre.rouge .s, pre.rouge .sa, pre.rouge .dl {
+  color: #d14;
+}
+pre.rouge .na {
+  color: #008080;
+}
+pre.rouge .bp {
+  color: #999999;
+}
+pre.rouge .nb {
+  color: #0086B3;
+}
+pre.rouge .nc {
+  color: #445588;
+  font-weight: bold;
+}
+pre.rouge .no {
+  color: #008080;
+}
+pre.rouge .nd {
+  color: #3c5d5d;
+  font-weight: bold;
+}
+pre.rouge .ni {
+  color: #800080;
+}
+pre.rouge .ne {
+  color: #990000;
+  font-weight: bold;
+}
+pre.rouge .nf, pre.rouge .fm {
+  color: #990000;
+  font-weight: bold;
+}
+pre.rouge .nl {
+  color: #990000;
+  font-weight: bold;
+}
+pre.rouge .nn {
+  color: #555555;
+}
+pre.rouge .nt {
+  color: #000080;
+}
+pre.rouge .vc {
+  color: #008080;
+}
+pre.rouge .vg {
+  color: #008080;
+}
+pre.rouge .vi {
+  color: #008080;
+}
+pre.rouge .nv, pre.rouge .vm {
+  color: #008080;
+}
+pre.rouge .ow {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .o {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .w {
+  color: #bbbbbb;
+}
+pre.rouge {
+  background-color: #f8f8f8;
+}
+</style>
 </body>
 </html>

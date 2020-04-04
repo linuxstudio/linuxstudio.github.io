@@ -71,3 +71,85 @@ per-application configuration of secure routes.
 available certificates issued by https://letsencrypt.org/[Let's Encrypt]
 
 == Deploying sample application
+
+We want to deploy a test application. Let's choose the
+https://access.redhat.com/containers/?tab=images#/registry.access.redhat.com/rhel8/nginx-116[Nginx]
+image available from Red Hat Container Catalog:
+
+. Let's first create a project to host this application deployment:
++
+[source%nowrap,bash]
+----
+oc new-project nginx-test
+----
++
+. Check which versions of nginx image(streams) are already available in the OpenShift
+integrated registry:
++
+[source%nowrap,sh]
+----
+$ oc get is -n openshift | grep nginx
+nginx           image-registry.openshift-image-registry.svc:5000/openshift/nginx    1.10,1.12,latest
+----
++
+. Deploy a simple static website using the source on github and the existing
+nginx:1.12 imagestream as builder image:
++
+[source%nowrap,sh]
+----
+$ oc new-app nginx:1.12~https://github.com/sclorg/nginx-ex.git
+--> Found image fc13148 (5 months old) in image stream "openshift/nginx" under tag "1.12" for "nginx:1.12"
+
+    Nginx 1.12
+    ----------
+    Nginx is a web server and a reverse proxy server for HTTP, SMTP, POP3 and IMAP protocols, with a strong focus on high concurrency, performance and low memory usage. The container image provides a containerized packaging of the nginx 1.12 daemon. The image can be used as a base image for other applications based on nginx 1.12 web server. Nginx server image can be extended using source-to-image tool.
+
+    Tags: builder, nginx, rh-nginx112
+
+    * A source build using source code from https://github.com/sclorg/nginx-ex.git will be created
+      * The resulting image will be pushed to image stream tag "nginx-ex:latest"
+      * Use 'oc start-build' to trigger a new build
+    * This image will be deployed in deployment config "nginx-ex"
+    * Ports 8080/tcp, 8443/tcp will be load balanced by service "nginx-ex"
+      * Other containers can access this service through the hostname "nginx-ex"
+
+--> Creating resources ...
+    imagestream.image.openshift.io "nginx-ex" created
+    buildconfig.build.openshift.io "nginx-ex" created
+    deploymentconfig.apps.openshift.io "nginx-ex" created
+    service "nginx-ex" created
+--> Success
+    Build scheduled, use 'oc logs -f bc/nginx-ex' to track its progress.
+    Application is not exposed. You can expose services to the outside world by executing one or more of the commands below:
+     'oc expose svc/nginx-ex'
+    Run 'oc status' to view your app.
+
+$ oc logs -f bc/nginx-ex
+...
+Successfully pushed image-registry.openshift-image-registry.svc:5000/nginx-test/nginx-ex@sha256:129597eaf2a9c5c5e6d1bd51de63a257859ebec08241bd04d084e8d3f2283bc7
+Push successful
+
+$ oc get pods
+NAME                READY   STATUS      RESTARTS   AGE
+nginx-ex-1-build    0/1     Completed   0          108s
+nginx-ex-1-deploy   0/1     Completed   0          42s
+nginx-ex-1-ksgvj    1/1     Running     0          34s
+
+$ oc get ingress.config cluster -o yaml | grep domain
+  domain: apps.ocp4cluster.example.com
+
+$ oc expose svc/nginx-ex --hostname website.apps.ocp4cluster.example.com
+  route.route.openshift.io/nginx-ex exposed
+
+$ curl --head website.apps.ocp4cluster.example.com
+HTTP/1.1 200 OK
+Server: nginx/1.12.1
+Date: Sat, 04 Apr 2020 15:31:07 GMT
+Content-Type: text/html
+Content-Length: 37451
+Last-Modified: Sat, 04 Apr 2020 15:24:58 GMT
+ETag: "5e88a6ca-924b"
+Accept-Ranges: bytes
+Set-Cookie: 412d7c10008752e4b9932459e3e64d55=92df654ecafe8ab745d16c244970e652; path=/; HttpOnly
+Cache-control: private
+----
