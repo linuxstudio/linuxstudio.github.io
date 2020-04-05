@@ -651,8 +651,8 @@ p.tableblock.header { color: #6d6e71; }
 <div class="details">
 <span id="author" class="author">Francesco Minafra</span><br>
 <span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
-<span id="revnumber">version 5433420,</span>
-<span id="revdate">Sun Apr 5 11:39:12 2020 +0200</span>
+<span id="revnumber">version 93bb3fd,</span>
+<span id="revdate">Sun Apr 5 13:45:33 2020 +0200</span>
 </div>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
@@ -669,6 +669,7 @@ p.tableblock.header { color: #6d6e71; }
 <li><a href="#_apiwildcard_certificates">5. API/Wildcard certificates</a>
 <ul class="sectlevel2">
 <li><a href="#_certificate_for_the_api_endpoint">5.1. Certificate for the API endpoint</a></li>
+<li><a href="#_certificate_for_the_ingress_controller">5.2. Certificate for the Ingress controller</a></li>
 </ul>
 </li>
 </ul>
@@ -1320,13 +1321,73 @@ error: x509: certificate is valid <span class="k">for </span>apps.ocp4cluster.ex
 </table>
 </div>
 </div>
+<div class="sect2">
+<h3 id="_certificate_for_the_ingress_controller">5.2. Certificate for the Ingress controller</h3>
+<div class="paragraph">
+<p>Reference:</p>
+</div>
+<div class="paragraph">
+<p><a href="https://docs.openshift.com/container-platform/4.2/authentication/certificates/replacing-default-ingress-certificate.html" class="bare">https://docs.openshift.com/container-platform/4.2/authentication/certificates/replacing-default-ingress-certificate.html</a></p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Define a variable for the hostname that will have the certificate issued:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="nb">export </span><span class="nv">WILDCARD_HOSTNAME</span><span class="o">=</span><span class="si">$(</span>oc get ingresscontroller default <span class="nt">-n</span> openshift-ingress-operator <span class="nt">-o</span> <span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.status.domain}'</span><span class="si">)</span>
+<span class="nv">$ </span><span class="nb">echo</span> <span class="nv">$WILDCARD_HOSTNAME</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>If not already done, update the file <code>$HOME/acme.sh/dnsapi/dns_aws.sh</code> with your
+AWS access credentials.</p>
+</li>
+<li>
+<p>Run the <code>acme.sh</code> script</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="k">${</span><span class="nv">HOME</span><span class="k">}</span>/acme.sh/acme.sh <span class="nt">--issue</span> <span class="nt">-d</span> <span class="k">*</span>.<span class="k">${</span><span class="nv">WILDCARD_HOSTNAME</span><span class="k">}</span> <span class="nt">--dns</span> dns_aws</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Move the certificates from the <strong>acme.sh</strong> default path to a well known directory.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="nb">export </span><span class="nv">WILDCARD_CERTDIR</span><span class="o">=</span><span class="nv">$HOME</span>/ingress-certificates
+<span class="nv">$ </span><span class="nb">mkdir</span> <span class="nt">-p</span> <span class="k">${</span><span class="nv">WILDCARD_CERTDIR</span><span class="k">}</span>
+<span class="nv">$ </span><span class="k">${</span><span class="nv">HOME</span><span class="k">}</span>/acme.sh/acme.sh <span class="nt">--install-cert</span> <span class="nt">-d</span> <span class="k">*</span>.<span class="k">${</span><span class="nv">WILDCARD_HOSTNAME</span><span class="k">}</span> <span class="nt">--cert-file</span> <span class="k">${</span><span class="nv">WILDCARD_CERTDIR</span><span class="k">}</span>/cert.pem <span class="nt">--key-file</span> <span class="k">${</span><span class="nv">WILDCARD_CERTDIR</span><span class="k">}</span>/key.pem <span class="nt">--fullchain-file</span> <span class="k">${</span><span class="nv">WILDCARD_CERTDIR</span><span class="k">}</span>/fullchain.pem <span class="nt">--ca-file</span> <span class="k">${</span><span class="nv">WILDCARD_CERTDIR</span><span class="k">}</span>/ca.cer</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Create a secret that contains the certificate and key in the <code>openshift-ingress</code> namespace.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc create secret tls <span class="nt">-n</span> openshift-ingress router-certs <span class="nt">--cert</span><span class="o">=</span><span class="k">${</span><span class="nv">WILDCARD_CERTDIR</span><span class="k">}</span>/fullchain.pem <span class="nt">--key</span><span class="o">=</span><span class="k">${</span><span class="nv">WILDCARD_CERTDIR</span><span class="k">}</span>/key.pem</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Update the Custom Resource for the router to reference the created secret.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc patch ingresscontroller default <span class="nt">-n</span> openshift-ingress-operator <span class="nt">--type</span><span class="o">=</span>merge <span class="nt">--patch</span><span class="o">=</span><span class="s1">'{"spec": {"defaultCertificate": {"name": "router-certs" }}}'</span></code></pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
+</div>
 </div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Version 5433420<br>
-Last updated 2020-04-05 13:44:47 +0200
+Version 93bb3fd<br>
+Last updated 2020-04-05 16:27:24 +0200
 </div>
 </div>
 <style>

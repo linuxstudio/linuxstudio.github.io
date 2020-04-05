@@ -494,3 +494,49 @@ $ oc login -u kubeadmin https://api.ocp4cluster.example.com:6443
 error: x509: certificate is valid for apps.ocp4cluster.example.com, not oauth-openshift.apps.ocp4cluster.example.com
 ----
 ====
+
+=== Certificate for the Ingress controller
+
+Reference:
+
+https://docs.openshift.com/container-platform/4.2/authentication/certificates/replacing-default-ingress-certificate.html
+
+. Define a variable for the hostname that will have the certificate issued:
++
+[source%nowrap,sh]
+----
+$ export WILDCARD_HOSTNAME=$(oc get ingresscontroller default -n openshift-ingress-operator -o jsonpath='{.status.domain}')
+$ echo $WILDCARD_HOSTNAME
+----
++
+. If not already done, update the file `$HOME/acme.sh/dnsapi/dns_aws.sh` with your
+AWS access credentials.
+. Run the `acme.sh` script
++
+[source%nowrap,sh]
+----
+$ ${HOME}/acme.sh/acme.sh --issue -d *.${WILDCARD_HOSTNAME} --dns dns_aws
+----
++
+. Move the certificates from the *acme.sh* default path to a well known directory.
++
+[source%nowrap,sh]
+----
+$ export WILDCARD_CERTDIR=$HOME/ingress-certificates
+$ mkdir -p ${WILDCARD_CERTDIR}
+$ ${HOME}/acme.sh/acme.sh --install-cert -d *.${WILDCARD_HOSTNAME} --cert-file ${WILDCARD_CERTDIR}/cert.pem --key-file ${WILDCARD_CERTDIR}/key.pem --fullchain-file ${WILDCARD_CERTDIR}/fullchain.pem --ca-file ${WILDCARD_CERTDIR}/ca.cer
+----
++
+. Create a secret that contains the certificate and key in the `openshift-ingress` namespace.
++
+[source%nowrap,sh]
+----
+$ oc create secret tls -n openshift-ingress router-certs --cert=${WILDCARD_CERTDIR}/fullchain.pem --key=${WILDCARD_CERTDIR}/key.pem
+----
++
+. Update the Custom Resource for the router to reference the created secret.
++
+[source%nowrap,sh]
+----
+$ oc patch ingresscontroller default -n openshift-ingress-operator --type=merge --patch='{"spec": {"defaultCertificate": {"name": "router-certs" }}}'
+----
