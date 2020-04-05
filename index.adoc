@@ -10,7 +10,7 @@
 :stylesheet: colony.css
 // :stylesheet: asciidoctor.css
 
-* Installing certificates to secure traffic for apps
+* Installing certificates to secure traffic for apps link:demo/apps-certificates.html[link]
 * Best practice for setting up Load Balancers
 * Setting up `fluentd` with `secure_forward`
 * Customizing Prometheus Alert Manager In OCP4
