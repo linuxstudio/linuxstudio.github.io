@@ -651,8 +651,8 @@ p.tableblock.header { color: #6d6e71; }
 <div class="details">
 <span id="author" class="author">Francesco Minafra</span><br>
 <span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
-<span id="revnumber">version e8d2424,</span>
-<span id="revdate">Sat Apr 4 17:33:59 2020 +0200</span>
+<span id="revnumber">version 2c70873,</span>
+<span id="revdate">Sat Apr 4 21:00:27 2020 +0200</span>
 </div>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
@@ -660,6 +660,12 @@ p.tableblock.header { color: #6d6e71; }
 <li><a href="#_introduction">1. Introduction</a></li>
 <li><a href="#_assumptions">2. Assumptions</a></li>
 <li><a href="#_deploy_sample_application">3. Deploy sample application</a></li>
+<li><a href="#_secured_edge_route">4. Secured edge route</a>
+<ul class="sectlevel2">
+<li><a href="#_requesting_the_certificate">4.1. Requesting the certificate</a></li>
+<li><a href="#_installing_the_certificate">4.2. Installing the certificate</a></li>
+</ul>
+</li>
 </ul>
 </div>
 </div>
@@ -969,7 +975,7 @@ metadata:
   selfLink: /apis/route.openshift.io/v1/namespaces/nginx-test/routes/nginx-ex
   uid: 3a6c5102-7689-11ea-8459-0a580a800024
 spec:
-  host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
+  host: website.apps.ocp4cluster.example.com
   port:
     targetPort: 8080-tcp
   subdomain: <span class="s2">""</span>
@@ -984,8 +990,8 @@ status:
     - lastTransitionTime: <span class="s2">"2020-04-04T15:30:35Z"</span>
       status: <span class="s2">"True"</span>
       <span class="nb">type</span>: Admitted
-    host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
-    routerCanonicalHostname: apps.cluster-cfb8.sandbox1840.opentlc.com
+    host: website.apps.ocp4cluster.example.com
+    routerCanonicalHostname: apps.ocp4cluster.example.com
     routerName: default
     wildcardPolicy: None</code></pre>
 </div>
@@ -1013,11 +1019,138 @@ Cache-control: private</code></pre>
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_secured_edge_route">4. Secured edge route</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Let&#8217;s create an <a href="https://docs.openshift.com/container-platform/4.2/networking/routes/secured-routes.html">edge route</a>
+for the application deployed in the previous section using a custom certificate.</p>
+</div>
+<div class="paragraph">
+<p>In most organizations the custom certificate is either provided by an internal
+trusted certification authority or purchased via a commercial certification
+authority that verifies the identity of the requester.</p>
+</div>
+<div class="paragraph">
+<p>In our case we will use certificates issued for free by <a href="https://letsencrypt.org/">Let&#8217;s Encrypt</a>.
+These certificates are short-lived but trusted by most modern web browsers.</p>
+</div>
+<div class="sect2">
+<h3 id="_requesting_the_certificate">4.1. Requesting the certificate</h3>
+<div class="paragraph">
+<p>Following the instructions in this <a href="https://blog.openshift.com/requesting-and-installing-lets-encrypt-certificates-for-openshift-4/">Red Hat blog post</a>
+we will request a certificate for the hostname that we assigned to the exposed route
+of the sample application already deployed as described above.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>The steps that follow assume that the OpenShift 4 cluster is deployed on AWS.
+Similar steps should be followed if using another cloud provider or virtualization
+platform.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>From the bastion host, clone the acme.sh GitHub repository</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="nb">cd</span> <span class="nv">$HOME</span>
+<span class="nv">$ </span>git clone https://github.com/neilpang/acme.sh
+<span class="nv">$ </span><span class="nb">cd </span>acme.sh</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Update the file <code>$HOME/acme.sh/dnsapi/dns_aws.sh</code> with your AWS access credentials.</p>
+</li>
+<li>
+<p>Define a variable for the hostname that will have the certificate issued. In our
+case this will be the hostname choosen for the exported route of the example application
+deployed earlier:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="nb">export </span><span class="nv">WEB_HOSTNAME</span><span class="o">=</span>website.apps.ocp4cluster.example.com</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Run the acme.sh script</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="k">${</span><span class="nv">HOME</span><span class="k">}</span>/acme.sh/acme.sh <span class="nt">--issue</span> <span class="nt">-d</span> <span class="k">${</span><span class="nv">WEB_HOSTNAME</span><span class="k">}</span> <span class="nt">--dns</span> dns_aws</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>It is usually a good idea to move the certificates from the <strong>acme.sh</strong> default
+path to a well known directory. So use the <code>--install-cert</code> option of the <code>acme.sh</code>
+script to copy the certificates to <code>$HOME/web-certificates</code>.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="nb">export </span><span class="nv">CERTDIR</span><span class="o">=</span><span class="nv">$HOME</span>/web-certificates
+<span class="nv">$ </span><span class="nb">mkdir</span> <span class="nt">-p</span> <span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>
+<span class="nv">$ </span><span class="k">${</span><span class="nv">HOME</span><span class="k">}</span>/acme.sh/acme.sh <span class="nt">--install-cert</span> <span class="nt">-d</span> <span class="k">${</span><span class="nv">WEB_HOSTNAME</span><span class="k">}</span> <span class="nt">--cert-file</span> <span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>/cert.pem <span class="nt">--key-file</span> <span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>/key.pem <span class="nt">--fullchain-file</span> <span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>/fullchain.pem <span class="nt">--ca-file</span> <span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>/ca.cer</code></pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_installing_the_certificate">4.2. Installing the certificate</h3>
+<div class="paragraph">
+<p>We have previously exposed the service for the web app using a route that is not
+secured by any encryption. Let&#8217;s delete that route and recreate it using the
+just generated certificate:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get route
+NAME     HOST/PORT                            PATH   SERVICES   PORT       TERMINATION   WILDCARD
+nginx-ex website.apps.ocp4cluster.example.com        nginx-ex   8080-tcp                 None
+
+<span class="nv">$ </span>oc delete route nginx-ex
+route.route.openshift.io <span class="s2">"nginx-ex"</span> deleted
+
+<span class="nv">$ </span>oc create route edge <span class="nt">--service</span><span class="o">=</span>nginx-ex <span class="nt">--cert</span><span class="o">=</span><span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>/cert.pem <span class="nt">--key</span><span class="o">=</span><span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>/key.pem <span class="nt">--ca-cert</span><span class="o">=</span><span class="k">${</span><span class="nv">CERTDIR</span><span class="k">}</span>/ca.cer <span class="nt">--hostname</span><span class="o">=</span>website.apps.ocp4cluster.example.com
+route.route.openshift.io/nginx-ex created
+
+<span class="nv">$ </span>oc get route
+NAME     HOST/PORT                            PATH   SERVICES   PORT       TERMINATION   WILDCARD
+nginx-ex website.apps.ocp4cluster.example.com        nginx-ex   8080-tcp   edge          None
+
+
+<span class="nv">$ </span>curl <span class="nt">--head</span> https://website.apps.ocp4cluster.example.com
+HTTP/1.1 200 OK
+Server: nginx/1.12.1
+Date: Sun, 05 Apr 2020 09:38:02 GMT
+Content-Type: text/html
+Content-Length: 37451
+Last-Modified: Sat, 04 Apr 2020 15:24:58 GMT
+ETag: <span class="s2">"5e88a6ca-924b"</span>
+Accept-Ranges: bytes
+Set-Cookie: <span class="nv">412d7c10008752e4b9932459e3e64d55</span><span class="o">=</span>92df654ecafe8ab745d16c244970e652<span class="p">;</span> <span class="nv">path</span><span class="o">=</span>/<span class="p">;</span> HttpOnly<span class="p">;</span> Secure
+Cache-control: private</code></pre>
+</div>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Version e8d2424<br>
-Last updated 2020-04-04 20:59:52 +0200
+Version 2c70873<br>
+Last updated 2020-04-05 11:38:49 +0200
 </div>
 </div>
 <style>

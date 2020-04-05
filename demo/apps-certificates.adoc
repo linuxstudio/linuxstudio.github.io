@@ -234,7 +234,7 @@ metadata:
   selfLink: /apis/route.openshift.io/v1/namespaces/nginx-test/routes/nginx-ex
   uid: 3a6c5102-7689-11ea-8459-0a580a800024
 spec:
-  host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
+  host: website.apps.ocp4cluster.example.com
   port:
     targetPort: 8080-tcp
   subdomain: ""
@@ -249,8 +249,8 @@ status:
     - lastTransitionTime: "2020-04-04T15:30:35Z"
       status: "True"
       type: Admitted
-    host: website.apps.cluster-cfb8.sandbox1840.opentlc.com
-    routerCanonicalHostname: apps.cluster-cfb8.sandbox1840.opentlc.com
+    host: website.apps.ocp4cluster.example.com
+    routerCanonicalHostname: apps.ocp4cluster.example.com
     routerName: default
     wildcardPolicy: None
 ----
@@ -269,5 +269,103 @@ Last-Modified: Sat, 04 Apr 2020 15:24:58 GMT
 ETag: "5e88a6ca-924b"
 Accept-Ranges: bytes
 Set-Cookie: 412d7c10008752e4b9932459e3e64d55=92df654ecafe8ab745d16c244970e652; path=/; HttpOnly
+Cache-control: private
+----
+
+== Secured edge route
+
+Let's create an https://docs.openshift.com/container-platform/4.2/networking/routes/secured-routes.html[edge route]
+for the application deployed in the previous section using a custom certificate.
+
+In most organizations the custom certificate is either provided by an internal
+trusted certification authority or purchased via a commercial certification
+authority that verifies the identity of the requester.
+
+In our case we will use certificates issued for free by https://letsencrypt.org/[Let's Encrypt].
+These certificates are short-lived but trusted by most modern web browsers.
+
+=== Requesting the certificate
+
+Following the instructions in this https://blog.openshift.com/requesting-and-installing-lets-encrypt-certificates-for-openshift-4/[Red Hat blog post]
+we will request a certificate for the hostname that we assigned to the exposed route
+of the sample application already deployed as described above.
+
+[NOTE]
+====
+The steps that follow assume that the OpenShift 4 cluster is deployed on AWS.
+Similar steps should be followed if using another cloud provider or virtualization
+platform.
+====
+
+. From the bastion host, clone the acme.sh GitHub repository
++
+[source%nowrap,sh]
+----
+$ cd $HOME
+$ git clone https://github.com/neilpang/acme.sh
+$ cd acme.sh
+----
++
+. Update the file `$HOME/acme.sh/dnsapi/dns_aws.sh` with your AWS access credentials.
+. Define a variable for the hostname that will have the certificate issued. In our
+case this will be the hostname choosen for the exported route of the example application
+deployed earlier:
++
+[source%nowrap,sh]
+----
+$ export WEB_HOSTNAME=website.apps.ocp4cluster.example.com
+----
++
+. Run the acme.sh script
++
+[source%nowrap,sh]
+----
+$ ${HOME}/acme.sh/acme.sh --issue -d ${WEB_HOSTNAME} --dns dns_aws
+----
++
+. It is usually a good idea to move the certificates from the *acme.sh* default
+path to a well known directory. So use the `--install-cert` option of the `acme.sh`
+script to copy the certificates to `$HOME/web-certificates`.
++
+[source%nowrap,sh]
+----
+$ export CERTDIR=$HOME/web-certificates
+$ mkdir -p ${CERTDIR}
+$ ${HOME}/acme.sh/acme.sh --install-cert -d ${WEB_HOSTNAME} --cert-file ${CERTDIR}/cert.pem --key-file ${CERTDIR}/key.pem --fullchain-file ${CERTDIR}/fullchain.pem --ca-file ${CERTDIR}/ca.cer
+----
+
+=== Installing the certificate
+
+We have previously exposed the service for the web app using a route that is not
+secured by any encryption. Let's delete that route and recreate it using the
+just generated certificate:
+
+[source%nowrap,sh]
+----
+$ oc get route
+NAME     HOST/PORT                            PATH   SERVICES   PORT       TERMINATION   WILDCARD
+nginx-ex website.apps.ocp4cluster.example.com        nginx-ex   8080-tcp                 None
+
+$ oc delete route nginx-ex
+route.route.openshift.io "nginx-ex" deleted
+
+$ oc create route edge --service=nginx-ex --cert=${CERTDIR}/cert.pem --key=${CERTDIR}/key.pem --ca-cert=${CERTDIR}/ca.cer --hostname=website.apps.ocp4cluster.example.com
+route.route.openshift.io/nginx-ex created
+
+$ oc get route
+NAME     HOST/PORT                            PATH   SERVICES   PORT       TERMINATION   WILDCARD
+nginx-ex website.apps.ocp4cluster.example.com        nginx-ex   8080-tcp   edge          None
+
+
+$ curl --head https://website.apps.ocp4cluster.example.com
+HTTP/1.1 200 OK
+Server: nginx/1.12.1
+Date: Sun, 05 Apr 2020 09:38:02 GMT
+Content-Type: text/html
+Content-Length: 37451
+Last-Modified: Sat, 04 Apr 2020 15:24:58 GMT
+ETag: "5e88a6ca-924b"
+Accept-Ranges: bytes
+Set-Cookie: 412d7c10008752e4b9932459e3e64d55=92df654ecafe8ab745d16c244970e652; path=/; HttpOnly; Secure
 Cache-control: private
 ----
