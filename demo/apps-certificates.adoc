@@ -316,7 +316,7 @@ deployed earlier:
 $ export WEB_HOSTNAME=website.apps.ocp4cluster.example.com
 ----
 +
-. Run the acme.sh script
+. Run the `acme.sh` script
 +
 [source%nowrap,sh]
 ----
@@ -369,3 +369,128 @@ Accept-Ranges: bytes
 Set-Cookie: 412d7c10008752e4b9932459e3e64d55=92df654ecafe8ab745d16c244970e652; path=/; HttpOnly; Secure
 Cache-control: private
 ----
+
+== API/Wildcard certificates
+
+These can be installed following step by step the instructions in the blog post
+from Wolfgang Kulhanek: https://blog.openshift.com/requesting-and-installing-lets-encrypt-certificates-for-openshift-4/
+
+Initially we notice how accessing the console happens over a secure connection.
+The certificate used for this connection is however untrusted and produces an
+error when we try to access it with the `curl` client:
+
+[source%nowrap,sh]
+----
+$ oc whoami --show-console
+https://console-openshift-console.apps.ocp4cluster.example.com
+
+$ curl --head https://console-openshift-console.apps.ocp4cluster.example.com
+curl: (60) Peer's certificate issuer has been marked as not trusted by the user.
+More details here: http://curl.haxx.se/docs/sslcerts.html
+
+curl performs SSL certificate verification by default, using a "bundle"
+ of Certificate Authority (CA) public keys (CA certs). If the default
+ bundle file isn't adequate, you can specify an alternate file
+ using the --cacert option.
+If this HTTPS server uses a certificate signed by a CA represented in
+ the bundle, the certificate verification probably failed due to a
+ problem with the certificate (it might be expired, or the name might
+ not match the domain name in the URL).
+If you'd like to turn off curl's verification of the certificate, use
+ the -k (or --insecure) option.
+----
+
+=== Certificate for the API endpoint
+
+Reference:
+
+https://docs.openshift.com/container-platform/4.2/authentication/certificates/api-server.html
+
+. Define a variable for the hostname that will have the certificate issued:
++
+[source%nowrap,sh]
+----
+$ export API_HOSTNAME=$(oc whoami --show-server | cut -f 2 -d ':' | cut -f 3 -d '/')
+$ echo $API_HOSTNAME
+----
++
+. If not already done, update the file `$HOME/acme.sh/dnsapi/dns_aws.sh` with your
+AWS access credentials.
+. Run the `acme.sh` script
++
+[source%nowrap,sh]
+----
+$ ${HOME}/acme.sh/acme.sh --issue -d ${API_HOSTNAME} --dns dns_aws
+----
++
+. Move the certificates from the *acme.sh* default path to a well known directory:
++
+[source%nowrap,sh]
+----
+$ export API_CERTDIR=$HOME/api-certificates
+$ mkdir -p ${API_CERTDIR}
+$ ${HOME}/acme.sh/acme.sh --install-cert -d ${API_HOSTNAME} --cert-file ${API_CERTDIR}/cert.pem --key-file ${API_CERTDIR}/key.pem --fullchain-file ${API_CERTDIR}/fullchain.pem --ca-file ${API_CERTDIR}/ca.cer
+----
++
+. Create a secret that contains the certificate and key in the `openshift-config` namespace.
++
+[source%nowrap,sh]
+----
+$ oc create secret tls -n openshift-config api-certs --cert=${API_CERTDIR}/fullchain.pem --key=${API_CERTDIR}/key.pem
+----
++
+. Update the API server to reference the created secret.
++
+[source%nowrap,bash]
+----
+$ oc patch apiserver cluster --type=merge --patch='{"spec": {"servingCerts": {"namedCertificates": [{"names": [" '$API_HOSTNAME' "], "servingCertificate": {"name": "api-certs"}}]}}}'
+----
++
+. Check the progress until the `kube-apiserver` operator finishes updating
++
+[source%nowrap,sh]
+----
+$ oc get clusteroperators | grep kube-apiserver
+kube-apiserver                             4.2.20    True        False          False      8d
+----
++
+. Notice that if we try to login to the API endpoint without using the existing
+`kubeconfig` file (that embeds an X.509 client certificate that never expires),
+we get errors:
++
+[source%nowrap,sh]
+----
+$ oc login -u kubeadmin https://api.ocp4cluster.example.com:6443
+error: x509: certificate signed by unknown authority
+
+$ oc login -u kubeadmin https://api.ocp4cluster.example.com:6443 --certificate-authority=${API_CERTDIR}/ca.cer
+error: x509: certificate signed by unknown authority
+----
++
+. The previous errors appear because during a login operation:
+.. Two different hosts are reached: API and OAuth
+.. The parameter `--certificate-authority` is only used to validate the API
+connections, so the Authentication URL must be validated using the CA bundle in
+the system.
+.. See this support ticket: https://access.redhat.com/support/cases/#/case/02596371
+.. See this KB article: https://access.redhat.com/solutions/4878721
+. Currently it is not possible to change only the OAuth certificate, without also
+changing the wildcard certificate used by the ingress controller. See the
+following RFE support ticket: https://access.redhat.com/support/cases/#/case/02601530
+
+[NOTE]
+====
+To demonstrate the fact that *oauth-openshift* intervenes in the process of
+login to the API console, we may do intentionally a mistake and install
+a certificate issued for `apps.ocp4cluster.example.com` instead of
+`*.apps.ocp4cluster.example.com` when updating the certificate for the ingress
+controller (see the following section).
+
+In that case we have the following error when trying to login:
+
+[source%nowrap,sh]
+----
+$ oc login -u kubeadmin https://api.ocp4cluster.example.com:6443
+error: x509: certificate is valid for apps.ocp4cluster.example.com, not oauth-openshift.apps.ocp4cluster.example.com
+----
+====

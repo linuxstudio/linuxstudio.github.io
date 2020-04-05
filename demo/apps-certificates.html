@@ -651,8 +651,8 @@ p.tableblock.header { color: #6d6e71; }
 <div class="details">
 <span id="author" class="author">Francesco Minafra</span><br>
 <span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
-<span id="revnumber">version 2c70873,</span>
-<span id="revdate">Sat Apr 4 21:00:27 2020 +0200</span>
+<span id="revnumber">version 5433420,</span>
+<span id="revdate">Sun Apr 5 11:39:12 2020 +0200</span>
 </div>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
@@ -664,6 +664,11 @@ p.tableblock.header { color: #6d6e71; }
 <ul class="sectlevel2">
 <li><a href="#_requesting_the_certificate">4.1. Requesting the certificate</a></li>
 <li><a href="#_installing_the_certificate">4.2. Installing the certificate</a></li>
+</ul>
+</li>
+<li><a href="#_apiwildcard_certificates">5. API/Wildcard certificates</a>
+<ul class="sectlevel2">
+<li><a href="#_certificate_for_the_api_endpoint">5.1. Certificate for the API endpoint</a></li>
 </ul>
 </li>
 </ul>
@@ -1084,7 +1089,7 @@ deployed earlier:</p>
 </div>
 </li>
 <li>
-<p>Run the acme.sh script</p>
+<p>Run the <code>acme.sh</code> script</p>
 <div class="listingblock">
 <div class="content">
 <pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="k">${</span><span class="nv">HOME</span><span class="k">}</span>/acme.sh/acme.sh <span class="nt">--issue</span> <span class="nt">-d</span> <span class="k">${</span><span class="nv">WEB_HOSTNAME</span><span class="k">}</span> <span class="nt">--dns</span> dns_aws</code></pre>
@@ -1146,11 +1151,182 @@ Cache-control: private</code></pre>
 </div>
 </div>
 </div>
+<div class="sect1">
+<h2 id="_apiwildcard_certificates">5. API/Wildcard certificates</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>These can be installed following step by step the instructions in the blog post
+from Wolfgang Kulhanek: <a href="https://blog.openshift.com/requesting-and-installing-lets-encrypt-certificates-for-openshift-4/" class="bare">https://blog.openshift.com/requesting-and-installing-lets-encrypt-certificates-for-openshift-4/</a></p>
+</div>
+<div class="paragraph">
+<p>Initially we notice how accessing the console happens over a secure connection.
+The certificate used for this connection is however untrusted and produces an
+error when we try to access it with the <code>curl</code> client:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc <span class="nb">whoami</span> <span class="nt">--show-console</span>
+https://console-openshift-console.apps.ocp4cluster.example.com
+
+<span class="nv">$ </span>curl <span class="nt">--head</span> https://console-openshift-console.apps.ocp4cluster.example.com
+curl: <span class="o">(</span>60<span class="o">)</span> Peer<span class="s1">'s certificate issuer has been marked as not trusted by the user.
+More details here: http://curl.haxx.se/docs/sslcerts.html
+
+curl performs SSL certificate verification by default, using a "bundle"
+ of Certificate Authority (CA) public keys (CA certs). If the default
+ bundle file isn'</span>t adequate, you can specify an alternate file
+ using the <span class="nt">--cacert</span> option.
+If this HTTPS server uses a certificate signed by a CA represented <span class="k">in
+ </span>the bundle, the certificate verification probably failed due to a
+ problem with the certificate <span class="o">(</span>it might be expired, or the name might
+ not match the domain name <span class="k">in </span>the URL<span class="o">)</span><span class="nb">.</span>
+If you<span class="s1">'d like to turn off curl'</span>s verification of the certificate, use
+ the <span class="nt">-k</span> <span class="o">(</span>or <span class="nt">--insecure</span><span class="o">)</span> option.</code></pre>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_certificate_for_the_api_endpoint">5.1. Certificate for the API endpoint</h3>
+<div class="paragraph">
+<p>Reference:</p>
+</div>
+<div class="paragraph">
+<p><a href="https://docs.openshift.com/container-platform/4.2/authentication/certificates/api-server.html" class="bare">https://docs.openshift.com/container-platform/4.2/authentication/certificates/api-server.html</a></p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Define a variable for the hostname that will have the certificate issued:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="nb">export </span><span class="nv">API_HOSTNAME</span><span class="o">=</span><span class="si">$(</span>oc <span class="nb">whoami</span> <span class="nt">--show-server</span> | <span class="nb">cut</span> <span class="nt">-f</span> 2 <span class="nt">-d</span> <span class="s1">':'</span> | <span class="nb">cut</span> <span class="nt">-f</span> 3 <span class="nt">-d</span> <span class="s1">'/'</span><span class="si">)</span>
+<span class="nv">$ </span><span class="nb">echo</span> <span class="nv">$API_HOSTNAME</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>If not already done, update the file <code>$HOME/acme.sh/dnsapi/dns_aws.sh</code> with your
+AWS access credentials.</p>
+</li>
+<li>
+<p>Run the <code>acme.sh</code> script</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="k">${</span><span class="nv">HOME</span><span class="k">}</span>/acme.sh/acme.sh <span class="nt">--issue</span> <span class="nt">-d</span> <span class="k">${</span><span class="nv">API_HOSTNAME</span><span class="k">}</span> <span class="nt">--dns</span> dns_aws</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Move the certificates from the <strong>acme.sh</strong> default path to a well known directory:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span><span class="nb">export </span><span class="nv">API_CERTDIR</span><span class="o">=</span><span class="nv">$HOME</span>/api-certificates
+<span class="nv">$ </span><span class="nb">mkdir</span> <span class="nt">-p</span> <span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>
+<span class="nv">$ </span><span class="k">${</span><span class="nv">HOME</span><span class="k">}</span>/acme.sh/acme.sh <span class="nt">--install-cert</span> <span class="nt">-d</span> <span class="k">${</span><span class="nv">API_HOSTNAME</span><span class="k">}</span> <span class="nt">--cert-file</span> <span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>/cert.pem <span class="nt">--key-file</span> <span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>/key.pem <span class="nt">--fullchain-file</span> <span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>/fullchain.pem <span class="nt">--ca-file</span> <span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>/ca.cer</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Create a secret that contains the certificate and key in the <code>openshift-config</code> namespace.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc create secret tls <span class="nt">-n</span> openshift-config api-certs <span class="nt">--cert</span><span class="o">=</span><span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>/fullchain.pem <span class="nt">--key</span><span class="o">=</span><span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>/key.pem</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Update the API server to reference the created secret.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="bash"><span class="nv">$ </span>oc patch apiserver cluster <span class="nt">--type</span><span class="o">=</span>merge <span class="nt">--patch</span><span class="o">=</span><span class="s1">'{"spec": {"servingCerts": {"namedCertificates": [{"names": [" '</span><span class="nv">$API_HOSTNAME</span><span class="s1">' "], "servingCertificate": {"name": "api-certs"}}]}}}'</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Check the progress until the <code>kube-apiserver</code> operator finishes updating</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get clusteroperators | <span class="nb">grep </span>kube-apiserver
+kube-apiserver                             4.2.20    True        False          False      8d</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Notice that if we try to login to the API endpoint without using the existing
+<code>kubeconfig</code> file (that embeds an X.509 client certificate that never expires),
+we get errors:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc login <span class="nt">-u</span> kubeadmin https://api.ocp4cluster.example.com:6443
+error: x509: certificate signed by unknown authority
+
+<span class="nv">$ </span>oc login <span class="nt">-u</span> kubeadmin https://api.ocp4cluster.example.com:6443 <span class="nt">--certificate-authority</span><span class="o">=</span><span class="k">${</span><span class="nv">API_CERTDIR</span><span class="k">}</span>/ca.cer
+error: x509: certificate signed by unknown authority</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>The previous errors appear because during a login operation:</p>
+<div class="olist loweralpha">
+<ol class="loweralpha" type="a">
+<li>
+<p>Two different hosts are reached: API and OAuth</p>
+</li>
+<li>
+<p>The parameter <code>--certificate-authority</code> is only used to validate the API
+connections, so the Authentication URL must be validated using the CA bundle in
+the system.</p>
+</li>
+<li>
+<p>See this support ticket: <a href="https://access.redhat.com/support/cases/#/case/02596371" class="bare">https://access.redhat.com/support/cases/#/case/02596371</a></p>
+</li>
+<li>
+<p>See this KB article: <a href="https://access.redhat.com/solutions/4878721" class="bare">https://access.redhat.com/solutions/4878721</a></p>
+</li>
+</ol>
+</div>
+</li>
+<li>
+<p>Currently it is not possible to change only the OAuth certificate, without also
+changing the wildcard certificate used by the ingress controller. See the
+following RFE support ticket: <a href="https://access.redhat.com/support/cases/#/case/02601530" class="bare">https://access.redhat.com/support/cases/#/case/02601530</a></p>
+</li>
+</ol>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>To demonstrate the fact that <strong>oauth-openshift</strong> intervenes in the process of
+login to the API console, we may do intentionally a mistake and install
+a certificate issued for <code>apps.ocp4cluster.example.com</code> instead of
+<code>*.apps.ocp4cluster.example.com</code> when updating the certificate for the ingress
+controller (see the following section).</p>
+</div>
+<div class="paragraph">
+<p>In that case we have the following error when trying to login:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc login <span class="nt">-u</span> kubeadmin https://api.ocp4cluster.example.com:6443
+error: x509: certificate is valid <span class="k">for </span>apps.ocp4cluster.example.com, not oauth-openshift.apps.ocp4cluster.example.com</code></pre>
+</div>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</div>
+</div>
+</div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Version 2c70873<br>
-Last updated 2020-04-05 11:38:49 +0200
+Version 5433420<br>
+Last updated 2020-04-05 13:44:47 +0200
 </div>
 </div>
 <style>
