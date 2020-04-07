@@ -109,19 +109,14 @@ and notifies the administrator in the web console of the available updates.
 
 In the following procedure we will assume that the cluster is currently at version
 4.2.20 and we want to upgrade it to one of the suggested versions *within the stable-4.x
-channels* as permitted by the OpenShift update service. Since the two available upgrade paths are:
+channels* as permitted by the OpenShift update service. Since the three available upgrade paths are:
 
 * 4.2.20 -> 4.2.21
 * 4.2.20 -> 4.2.25
+* 4.2.20 -> 4.2.26
 
 we will choose the first one and perform the upgrade.
 
-//It must be taken into account that for upgrading from OCP 4.1 to OCP 4.2 there
-//are currently only 2 possible paths:
-//
-//. From 4.1.21 to 4.2.2 using "fast-4.2" channel, and after that to 4.2.4 if needed.
-//. From 4.1.22 to 4.2.4 using "fast-4.2" channel.
-//
 .*Update from 4.2.20 to 4.2.21*
 
 . Open the Web console and login as `kubeadmin` user or as one of the members of
@@ -144,6 +139,7 @@ upgrade paths are:
 
 * 4.2.21 -> 4.2.25
 * 4.2.21 -> 4.2.26
+* 4.2.21 -> 4.2.27
 
 we will choose 4.2.26 as target version and perform the upgrade.
 
@@ -177,6 +173,7 @@ Updates:
 VERSION IMAGE
 4.2.25  quay.io/openshift-release-dev/ocp-release@sha256:dfbe59ca5dcc017475a0e1c703f51750c1bde63f12c725fbe4b7a599e36eb725
 4.2.26  quay.io/openshift-release-dev/ocp-release@sha256:af0a6384e787c820279a0954c804d9c27b13458df2de366b3cd5ec3a7cdaa4b2
+4.2.27  quay.io/openshift-release-dev/ocp-release@sha256:26b501f5111add85989de9f02e368a0bfda8b43a54d0d56f4bf5916abada34da
 ----
 +
 . Perform the update
