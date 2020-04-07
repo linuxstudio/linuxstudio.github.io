@@ -13,7 +13,7 @@
 . Installing certificates to secure traffic for apps -> link:demo/apps-certificates.html[link]
 . Best practice for setting up Load Balancers
 . Setting up `fluentd` with `secure_forward`
-. Customizing Prometheus Alert Manager In OCP4
+. Customizing Prometheus Alert Manager In OCP4 -> link:demo/alertmanager.html[link]
 . Setting up External Grafana pointing to internal OCP4 Prometheus
 . Getting metrics out of OCP4 cluster (alternative to Prometheus federation)
 . Update process for OCP4 -> link:demo/update-process.html[link]
