@@ -5,7 +5,8 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="generator" content="Asciidoctor 2.0.10">
-<title>OpenShift Container Platform 4 Topics</title>
+<meta name="author" content="Francesco Minafra">
+<title>Configuring Prometheus AlertManager</title>
 <style>
 @import url(http://cdnjs.cloudflare.com/ajax/libs/font-awesome/3.2.0/css/font-awesome.css);
 /* normalize.css v2.1.1 | MIT License | git.io/normalize */
@@ -644,41 +645,747 @@ p.tableblock.header { color: #6d6e71; }
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
-<body class="article">
+<body class="article toc2 toc-left">
 <div id="header">
-<h1>OpenShift Container Platform 4 Topics</h1>
+<h1>Configuring Prometheus AlertManager</h1>
+<div class="details">
+<span id="author" class="author">Francesco Minafra</span><br>
+<span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
+<span id="revnumber">version a647664,</span>
+<span id="revdate">Sun Apr 5 23:37:58 2020 +0200</span>
+</div>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#_introduction">1. Introduction</a></li>
+<li><a href="#_rocket_chat">2. Rocket.Chat</a>
+<ul class="sectlevel2">
+<li><a href="#_prerequisites">2.1. Prerequisites</a></li>
+<li><a href="#_deploy_the_apps">2.2. Deploy the apps</a></li>
+<li><a href="#_configure_rocket_chat">2.3. Configure Rocket.Chat</a></li>
+</ul>
+</li>
+<li><a href="#_alertmanager">3. Alertmanager</a></li>
+</ul>
+</div>
 </div>
 <div id="content">
+<div class="sect1">
+<h2 id="_introduction">1. Introduction</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>To demonstrate with an example the way Prometheus AlertManager can be configured
+to send alerts to a notification system, we will use a chat application that is
+similar to Slack and that can be deployed on the same cluster where AlertManager
+is running.</p>
+</div>
+<div class="paragraph">
+<p>In this section we will:</p>
+</div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Installing certificates to secure traffic for apps &#8594; <a href="demo/apps-certificates.html">link</a></p>
+<p>Deploy <a href="https://rocket.chat/" class="bare">https://rocket.chat/</a> backed by a <a href="https://github.com/sclorg/mongodb-container">MongoDB</a> database.</p>
 </li>
 <li>
-<p>Best practice for setting up Load Balancers</p>
-</li>
-<li>
-<p>Setting up <code>fluentd</code> with <code>secure_forward</code></p>
-</li>
-<li>
-<p>Customizing Prometheus Alert Manager In OCP4</p>
-</li>
-<li>
-<p>Setting up External Grafana pointing to internal OCP4 Prometheus</p>
-</li>
-<li>
-<p>Getting metrics out of OCP4 cluster (alternative to Prometheus federation)</p>
-</li>
-<li>
-<p>Update process for OCP4 &#8594; <a href="demo/update-process.html">link</a></p>
+<p>Configure Prometheus Alertmanager to send alerts in a channel of the deployed rocket.chat deployment.</p>
 </li>
 </ol>
 </div>
 </div>
+</div>
+<div class="sect1">
+<h2 id="_rocket_chat">2. Rocket.Chat</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="_prerequisites">2.1. Prerequisites</h3>
+<div class="ulist">
+<ul>
+<li>
+<p>An OpenShift Container Platform 4.2 cluster has already been
+installed</p>
+</li>
+<li>
+<p>A developer account is available for deploying the apps</p>
+</li>
+<li>
+<p>An administrator account with cluster-admin privileges is available to configure
+AlertManager</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_deploy_the_apps">2.2. Deploy the apps</h3>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Login as <code>developer</code> user to the cluster</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc <span class="nb">whoami
+</span>system:admin
+<span class="nv">$ API_ENDPOINT</span><span class="o">=</span><span class="si">$(</span>oc <span class="nb">whoami</span> <span class="nt">--show-server</span><span class="si">)</span>
+<span class="nv">$ </span><span class="nb">echo</span> <span class="nv">$API_ENDPOINT</span>
+<span class="nv">$ </span>oc login <span class="nt">-u</span> developer <span class="nv">$API_ENDPOINT</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Create a project (namespace) where to deploy MongoDB and Rocket.Chat</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc new-project rocket-chat</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>In order to function, Rocket.Chat needs a backing MongoDB database installed.
+We will deploy the application using the existing template called mongodb-persistent,
+which provides a MongoDB database service, with persistent storage. This template
+comes preinstalled on an OpenShift 4.2 cluster:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc new-app mongodb-persistent <span class="nt">-p</span> <span class="nv">MONGODB_USER</span><span class="o">=</span>rcadmin <span class="nt">-p</span> <span class="nv">MONGODB_PASSWORD</span><span class="o">=</span>rocketchat <span class="nt">-p</span> <span class="nv">MONGODB_DATABASE</span><span class="o">=</span>rocketchat <span class="nt">-p</span> <span class="nv">VOLUME_CAPACITY</span><span class="o">=</span>4Gi</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Wait until the MongoDB pod is fully initialized.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get pods
+NAME               READY   STATUS      RESTARTS   AGE
+mongodb-1-deploy   0/1     Completed   0          2m4s
+mongodb-1-gjzw6    1/1     Running     0          111s</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Deploy the Rocket.Chat image from Docker Hub, connecting it to the MongoDB
+database that you just created, and expose the Rocket.Chat service as a route:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc new-app docker.io/rocketchat/rocket.chat:0.59.1 <span class="nt">-e</span> <span class="nv">MONGO_URL</span><span class="o">=</span>mongodb://rcadmin:rocketchat@mongodb:27017/rocketchat
+<span class="nv">$ </span>oc expose svc rocketchat</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>We are explicitly using an older version of Rocket.Chat, since it simplifies the
+deployment (<a href="https://github.com/RocketChat/Rocket.Chat/pull/14227">doesn&#8217;t require OPLOG</a>)</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</li>
+<li>
+<p>Once the Rocket.Chat pod is fully started and the service exposed as a route,
+disable the email validity check for new users (change the pod name according to
+  what you have in your environment)</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc rsh mongodb-1-gjzw6
+sh-4.2<span class="nv">$ </span>mongo localhost:27017
+<span class="o">&gt;</span> use rocketchat
+<span class="o">&gt;</span> db.auth<span class="o">(</span><span class="s1">'rcadmin'</span>,<span class="s1">'rocketchat'</span><span class="o">)</span>
+<span class="o">&gt;</span> db.rocketchat_settings.update<span class="o">({</span>_id:<span class="s1">'Accounts_UseDNSDomainCheck'</span><span class="o">}</span>,<span class="o">{</span><span class="nv">$set</span>:<span class="o">{</span>value:false<span class="o">}})</span>
+<span class="o">&gt;</span> <span class="nb">exit
+</span>sh-4.2<span class="nv">$ </span><span class="nb">exit</span></code></pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_configure_rocket_chat">2.3. Configure Rocket.Chat</h3>
+<div class="olist arabic">
+<div class="title">Connect to the Rocket.Chat instance deployed on the cluster, and register a new account.</div>
+<ol class="arabic">
+<li>
+<p>Determine the URL of your Rocket.Chat instance using the command: <code>oc get route rocketchat</code></p>
+</li>
+<li>
+<p>In a web browser, navigate to the Rocket.Chat URL</p>
+</li>
+<li>
+<p>Under the blue <strong>Login</strong> button, select <strong>Register a new account</strong></p>
+</li>
+<li>
+<p>Enter your details (name, email address, and password)</p>
+</li>
+<li>
+<p>Click <strong>Register A New Account</strong></p>
+</li>
+<li>
+<p>On the warning dialog, click <strong>Yes</strong></p>
+</li>
+<li>
+<p>When prompted to register the username, keep the suggested username or change
+it to one you prefer, and then click <strong>Use this username</strong></p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<div class="title">Create a channel in Rocket.Chat</div>
+<p>We create a channel in Rocket.Chat so that Alertmanager has a destination for
+sending alerts.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Next to the <strong>Search</strong> box under your name, click <strong>+</strong>.</p>
+</li>
+<li>
+<p>Type <code>openshift-alerts</code> as the channel name and click <strong>Create</strong></p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<div class="title">Create Inbound Webhook</div>
+<p>We create then inbound webhook for the new channel to receive alerts from Alertmanager</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Next to your username, click the three dots and select <strong>Administration</strong></p>
+</li>
+<li>
+<p>Select <strong>Integrations</strong> &#8594; <strong>New Integration</strong> &#8594; <strong>Incoming WebHook</strong></p>
+</li>
+<li>
+<p>Enter or select the following values:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Enabled: True</p>
+</li>
+<li>
+<p>Name: OpenShift Alerts</p>
+</li>
+<li>
+<p>Post to Channel: #openshift-alerts</p>
+</li>
+<li>
+<p>Post as: rocket.cat</p>
+</li>
+<li>
+<p>Alias: Prometheus</p>
+</li>
+<li>
+<p>Script Enabled: True</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Copy and paste the script below into the Script box:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="javascript"><span class="kd">class</span> <span class="nx">Script</span> <span class="p">{</span>
+  <span class="nx">process_incoming_request</span><span class="p">({</span>
+    <span class="nx">request</span>
+  <span class="p">})</span> <span class="p">{</span>
+    <span class="kd">var</span> <span class="nx">alertColor</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">warning</span><span class="dl">"</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">alertKind</span>  <span class="o">=</span> <span class="dl">"</span><span class="s2">UNDEFINED</span><span class="dl">"</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="nx">request</span><span class="p">.</span><span class="nx">content</span><span class="p">.</span><span class="nx">status</span> <span class="o">==</span> <span class="dl">"</span><span class="s2">resolved</span><span class="dl">"</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">alertColor</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">good</span><span class="dl">"</span><span class="p">;</span>
+      <span class="nx">alertKind</span>  <span class="o">=</span> <span class="dl">"</span><span class="s2">RESOLVED</span><span class="dl">"</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="k">if</span> <span class="p">(</span><span class="nx">request</span><span class="p">.</span><span class="nx">content</span><span class="p">.</span><span class="nx">status</span> <span class="o">==</span> <span class="dl">"</span><span class="s2">firing</span><span class="dl">"</span><span class="p">)</span> <span class="p">{</span>
+      <span class="nx">alertColor</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">danger</span><span class="dl">"</span><span class="p">;</span>
+      <span class="nx">alertKind</span>  <span class="o">=</span> <span class="dl">"</span><span class="s2">PROBLEM</span><span class="dl">"</span>
+    <span class="p">}</span>
+    <span class="nx">console</span><span class="p">.</span><span class="nx">log</span><span class="p">(</span><span class="nx">request</span><span class="p">.</span><span class="nx">content</span><span class="p">);</span>
+
+    <span class="kd">let</span> <span class="nx">finFields</span> <span class="o">=</span> <span class="p">[];</span>
+    <span class="k">for</span> <span class="p">(</span><span class="nx">i</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span> <span class="nx">i</span> <span class="o">&lt;</span> <span class="nx">request</span><span class="p">.</span><span class="nx">content</span><span class="p">.</span><span class="nx">alerts</span><span class="p">.</span><span class="nx">length</span><span class="p">;</span> <span class="nx">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+      <span class="kd">var</span> <span class="nx">endVal</span> <span class="o">=</span> <span class="nx">request</span><span class="p">.</span><span class="nx">content</span><span class="p">.</span><span class="nx">alerts</span><span class="p">[</span><span class="nx">i</span><span class="p">];</span>
+      <span class="kd">var</span> <span class="nx">elem</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="na">title</span><span class="p">:</span> <span class="nx">alertKind</span> <span class="o">+</span> <span class="dl">"</span><span class="s2">: </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">endVal</span><span class="p">.</span><span class="nx">labels</span><span class="p">.</span><span class="nx">alertname</span><span class="p">,</span>
+        <span class="na">value</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Instance: </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">endVal</span><span class="p">.</span><span class="nx">labels</span><span class="p">.</span><span class="nx">instance</span> <span class="o">+</span> <span class="dl">"</span><span class="s2">; </span><span class="dl">"</span> <span class="o">+</span> <span class="dl">"</span><span class="s2">Description: </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">endVal</span><span class="p">.</span><span class="nx">annotations</span><span class="p">.</span><span class="nx">description</span> <span class="o">+</span> <span class="dl">"</span><span class="s2">; </span><span class="dl">"</span> <span class="o">+</span> <span class="dl">"</span><span class="s2">Summary: </span><span class="dl">"</span> <span class="o">+</span> <span class="nx">endVal</span><span class="p">.</span><span class="nx">annotations</span><span class="p">.</span><span class="nx">summary</span><span class="p">,</span>
+        <span class="na">short</span><span class="p">:</span> <span class="kc">false</span>
+      <span class="p">};</span>
+
+      <span class="nx">finFields</span><span class="p">.</span><span class="nx">push</span><span class="p">(</span><span class="nx">elem</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="p">{</span>
+      <span class="na">content</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">username</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Alertmanager</span><span class="dl">"</span><span class="p">,</span>
+        <span class="na">attachments</span><span class="p">:</span> <span class="p">[{</span>
+          <span class="na">color</span><span class="p">:</span> <span class="nx">alertColor</span><span class="p">,</span>
+          <span class="na">title_link</span><span class="p">:</span> <span class="nx">request</span><span class="p">.</span><span class="nx">content</span><span class="p">.</span><span class="nx">externalURL</span><span class="p">,</span>
+          <span class="na">title</span><span class="p">:</span> <span class="dl">"</span><span class="s2">Prometheus notification</span><span class="dl">"</span><span class="p">,</span>
+          <span class="na">fields</span><span class="p">:</span> <span class="nx">finFields</span><span class="p">,</span>
+        <span class="p">}]</span>
+      <span class="p">}</span>
+    <span class="p">};</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+      <span class="na">error</span><span class="p">:</span> <span class="p">{</span>
+        <span class="na">success</span><span class="p">:</span> <span class="kc">false</span><span class="p">,</span>
+        <span class="na">message</span><span class="p">:</span> <span class="dl">'</span><span class="s1">Error accepting Web Hook</span><span class="dl">'</span>
+      <span class="p">}</span>
+    <span class="p">};</span>
+  <span class="p">}</span>
+<span class="p">}</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Click Save Changes</p>
+</li>
+<li>
+<p>Copy the webhook URL to use later in configuring Alertmanager</p>
+<div class="ulist">
+<ul>
+<li>
+<p>This field appears only after clicking Save Changes</p>
+</li>
+<li>
+<p>It should look similar to:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="text">http://rocketchat-rocket-chat.apps.ocp4cluster.example.com/hooks/yozbsYLP7GEDAsYRf/8xbtphm8M3q5Yh4DJcfH3pdKBd27wMBN9W65GHjZZjzG8jtL</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Next to Administration, click the X and return to the chat window</p>
+</li>
+<li>
+<p>From a shell prompt, test that your webhook is working by sending an example
+JSON payload to Rocket.Chat, replacing &lt;WEBHOOK_URL&gt; with the URL you copied earlier</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh">curl <span class="nt">-X</span> POST <span class="nt">-H</span> <span class="s1">'Content-Type: application/json'</span> <span class="nt">--data</span> <span class="s1">'{"alerts": [{"status": "testing", "labels": {"alertname": "alert_test", "instance": "instance.my.test.cluster" },   "annotations": { "description": "Alert Test Description",      "summary": "Alert Test Summary" } }]}'</span> &lt;WEBHOOK_URL&gt;</code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Expect to receive an alert message in your Rocket.Chat channel.</p>
+</li>
+</ul>
+</div>
+</li>
+</ol>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_alertmanager">3. Alertmanager</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>We configure Alertmanager to publish alerts to Rocket.Chat using the webhook
+configured in the previous section.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Check that you are logged in as administrator on the cluster:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc login <span class="nt">-u</span> administrator <span class="nv">$API_ENDPOINT</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Change to the <code>openshift-monitoring</code> project:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc project openshift-monitoring</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Run <code>oc get all</code> and find <strong>Alertmanager</strong> among the project resources</p>
+<div class="ulist">
+<ul>
+<li>
+<p>Expect to see three pods numbered from 0 to 2, which means that they are parts of a stateful set.</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get all
+NAME                                              READY   STATUS    RESTARTS   AGE
+pod/alertmanager-main-0                           3/3     Running   0          21h
+pod/alertmanager-main-1                           3/3     Running   0          21h
+pod/alertmanager-main-2                           3/3     Running   0          21h
+...
+NAME                                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT<span class="o">(</span>S<span class="o">)</span>                      AGE
+service/alertmanager-main             ClusterIP   172.30.50.77     &lt;none&gt;        9094/TCP                     27h
+service/alertmanager-operated         ClusterIP   None             &lt;none&gt;        9093/TCP,9094/TCP,9094/UDP   27h
+...
+NAME                                 READY   AGE
+statefulset.apps/alertmanager-main   3/3     27h
+...
+NAME                                         HOST/PORT                                                                PATH   SERVICES            PORT    TERMINATION          WILDCARD
+route.route.openshift.io/alertmanager-main   alertmanager-main-openshift-monitoring.apps.ocp4cluster.example.com             alertmanager-main   web     reencrypt/Redirect   None</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Decode the <code>alertmanager.yaml</code> configuration file and study the default configuration:</p>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>Alertmanager’s configuration is in the <code>alertmanager.yaml</code> configuration file,
+which is base64-encoded and stored in a secret called <code>alertmanager-main</code>. You
+can see the secret by running <code>oc get secret alertmanager-main</code>.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc get secret alertmanager-main <span class="nt">-o</span> <span class="nv">jsonpath</span><span class="o">=</span><span class="s1">'{.data.alertmanager\.yaml}'</span> | <span class="nb">base64</span> <span class="nt">-d</span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="title">Sample Output</div>
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="s2">"global"</span>:
+  <span class="s2">"resolve_timeout"</span>: <span class="s2">"5m"</span>
+<span class="s2">"receivers"</span>:
+- <span class="s2">"name"</span>: <span class="s2">"null"</span>
+<span class="s2">"route"</span>:
+  <span class="s2">"group_by"</span>:
+  - <span class="s2">"job"</span>
+  <span class="s2">"group_interval"</span>: <span class="s2">"5m"</span>
+  <span class="s2">"group_wait"</span>: <span class="s2">"30s"</span>
+  <span class="s2">"receiver"</span>: <span class="s2">"null"</span>
+  <span class="s2">"repeat_interval"</span>: <span class="s2">"12h"</span>
+  <span class="s2">"routes"</span>:
+  - <span class="s2">"match"</span>:
+      <span class="s2">"alertname"</span>: <span class="s2">"Watchdog"</span>
+    <span class="s2">"receiver"</span>: <span class="s2">"null"</span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Replace this configuration with your own, which includes your Rocket.Chat webhook:</p>
+<div class="ulist">
+<ul>
+<li>
+<p>In your favorite editor, create a file called <code>alertmanager.yaml</code> and enter the following:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh">global:
+  resolve_timeout: <span class="s1">'5m'</span>
+
+receivers:
+- name: <span class="s1">'webhook'</span>
+  webhook_configs:
+  - send_resolved: <span class="nb">true
+    </span>url: <span class="s1">'http://rocketchat-rocket-chat.apps.ocp4cluster.example.com/hooks/yozbsYLP7GEDAsYRf/8xbtphm8M3q5Yh4DJcfH3pdKBd27wMBN9W65GHjZZjzG8jtL'</span>
+
+<span class="c"># The root route on which each incoming alert enters.</span>
+route:
+  <span class="c"># The root route must not have any matchers as it is the entry point for</span>
+  <span class="c"># all alerts. It needs to have a receiver configured so alerts that do not</span>
+  <span class="c"># match any of the sub-routes are sent to someone.</span>
+  receiver: <span class="s1">'webhook'</span>
+
+  <span class="c"># The labels by which incoming alerts are grouped together. For example,</span>
+  <span class="c"># multiple alerts coming in for cluster=A and alertname=LatencyHigh would</span>
+  <span class="c"># be batched into a single group.</span>
+  group_by: <span class="o">[</span><span class="s1">'alertname'</span>, <span class="s1">'cluster'</span><span class="o">]</span>
+
+  <span class="c"># When the first notification was sent, wait 'group_interval' to send a batch</span>
+  <span class="c"># of new alerts that started firing for that group.</span>
+  group_interval: 5m
+
+  <span class="c"># When a new group of alerts is created by an incoming alert, wait at</span>
+  <span class="c"># least 'group_wait' to send the initial notification.</span>
+  <span class="c"># This way ensures that you get multiple alerts for the same group that start</span>
+  <span class="c"># firing shortly after another are batched together on the first</span>
+  <span class="c"># notification.</span>
+  group_wait: 30s
+
+  <span class="c"># If an alert has successfully been sent, wait 'repeat_interval' to</span>
+  <span class="c"># resend them.</span>
+  repeat_interval: 3h</code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Replace the default secret with your own:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc create secret generic alertmanager-main <span class="nt">--from-file</span><span class="o">=</span>alertmanager.yaml <span class="nt">--dry-run</span> <span class="nt">-o</span> yaml | oc replace <span class="nt">-f</span> -</code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Restart the stateful set:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="rouge highlight nowrap"><code data-lang="sh"><span class="nv">$ </span>oc patch statefulset alertmanager-main <span class="nt">-p</span> <span class="s1">'{"spec":{"updateStrategy":{"type":"RollingUpdate"}}}'</span>
+<span class="nv">$ </span>oc delete pod <span class="nt">-l</span> <span class="nv">app</span><span class="o">=</span>alertmanager</code></pre>
+</div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>If you want to use other notification mechanisms such as email, PagerDuty, or
+Slack, you need to update the configuration map with the correct configuration,
+as documented in the <a href="https://prometheus.io/docs/alerting/configuration">Prometheus configuration page</a>.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+</li>
+</ol>
+</div>
+</div>
+</div>
+</div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2020-04-07 09:44:26 +0200
+Version a647664<br>
+Last updated 2020-04-07 13:27:03 +0200
 </div>
 </div>
+<style>
+pre.rouge table td { padding: 5px; }
+pre.rouge table pre { margin: 0; }
+pre.rouge .cm {
+  color: #999988;
+  font-style: italic;
+}
+pre.rouge .cp {
+  color: #999999;
+  font-weight: bold;
+}
+pre.rouge .c1 {
+  color: #999988;
+  font-style: italic;
+}
+pre.rouge .cs {
+  color: #999999;
+  font-weight: bold;
+  font-style: italic;
+}
+pre.rouge .c, pre.rouge .ch, pre.rouge .cd, pre.rouge .cpf {
+  color: #999988;
+  font-style: italic;
+}
+pre.rouge .err {
+  color: #a61717;
+  background-color: #e3d2d2;
+}
+pre.rouge .gd {
+  color: #000000;
+  background-color: #ffdddd;
+}
+pre.rouge .ge {
+  color: #000000;
+  font-style: italic;
+}
+pre.rouge .gr {
+  color: #aa0000;
+}
+pre.rouge .gh {
+  color: #999999;
+}
+pre.rouge .gi {
+  color: #000000;
+  background-color: #ddffdd;
+}
+pre.rouge .go {
+  color: #888888;
+}
+pre.rouge .gp {
+  color: #555555;
+}
+pre.rouge .gs {
+  font-weight: bold;
+}
+pre.rouge .gu {
+  color: #aaaaaa;
+}
+pre.rouge .gt {
+  color: #aa0000;
+}
+pre.rouge .kc {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kd {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kn {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kp {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kr {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .kt {
+  color: #445588;
+  font-weight: bold;
+}
+pre.rouge .k, pre.rouge .kv {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .mf {
+  color: #009999;
+}
+pre.rouge .mh {
+  color: #009999;
+}
+pre.rouge .il {
+  color: #009999;
+}
+pre.rouge .mi {
+  color: #009999;
+}
+pre.rouge .mo {
+  color: #009999;
+}
+pre.rouge .m, pre.rouge .mb, pre.rouge .mx {
+  color: #009999;
+}
+pre.rouge .sb {
+  color: #d14;
+}
+pre.rouge .sc {
+  color: #d14;
+}
+pre.rouge .sd {
+  color: #d14;
+}
+pre.rouge .s2 {
+  color: #d14;
+}
+pre.rouge .se {
+  color: #d14;
+}
+pre.rouge .sh {
+  color: #d14;
+}
+pre.rouge .si {
+  color: #d14;
+}
+pre.rouge .sx {
+  color: #d14;
+}
+pre.rouge .sr {
+  color: #009926;
+}
+pre.rouge .s1 {
+  color: #d14;
+}
+pre.rouge .ss {
+  color: #990073;
+}
+pre.rouge .s, pre.rouge .sa, pre.rouge .dl {
+  color: #d14;
+}
+pre.rouge .na {
+  color: #008080;
+}
+pre.rouge .bp {
+  color: #999999;
+}
+pre.rouge .nb {
+  color: #0086B3;
+}
+pre.rouge .nc {
+  color: #445588;
+  font-weight: bold;
+}
+pre.rouge .no {
+  color: #008080;
+}
+pre.rouge .nd {
+  color: #3c5d5d;
+  font-weight: bold;
+}
+pre.rouge .ni {
+  color: #800080;
+}
+pre.rouge .ne {
+  color: #990000;
+  font-weight: bold;
+}
+pre.rouge .nf, pre.rouge .fm {
+  color: #990000;
+  font-weight: bold;
+}
+pre.rouge .nl {
+  color: #990000;
+  font-weight: bold;
+}
+pre.rouge .nn {
+  color: #555555;
+}
+pre.rouge .nt {
+  color: #000080;
+}
+pre.rouge .vc {
+  color: #008080;
+}
+pre.rouge .vg {
+  color: #008080;
+}
+pre.rouge .vi {
+  color: #008080;
+}
+pre.rouge .nv, pre.rouge .vm {
+  color: #008080;
+}
+pre.rouge .ow {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .o {
+  color: #000000;
+  font-weight: bold;
+}
+pre.rouge .w {
+  color: #bbbbbb;
+}
+pre.rouge {
+  background-color: #f8f8f8;
+}
+</style>
 </body>
 </html>
