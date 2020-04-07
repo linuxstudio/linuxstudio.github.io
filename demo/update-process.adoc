@@ -97,7 +97,7 @@ image::images/fast-4.3.svg[]
 .Upgrade paths using stable-4.x channels
 image::images/stable-4.3.svg[]
 
-As can be seen from the above graphs, *as of today* (6 april 2020)
+As can be seen from the above graphs, *as of today* (7 april 2020)
 *there are no available upgrade paths* to go from OCP 4.2.z to OCP 4.3.z
 
 == Upgrading using the web console
