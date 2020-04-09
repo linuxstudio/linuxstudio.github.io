@@ -292,25 +292,23 @@ $ oc get secret alertmanager-main -o jsonpath='{.data.alertmanager\.yaml}' | bas
 [source%nowrap,sh]
 ----
 global:
+  # ResolveTimeout is the default value used by alertmanager if the alert does
+  # not include EndsAt, after this time passes it can declare the alert as resolved if it has not been updated.
+  # This has no impact on alerts from Prometheus, as they always include EndsAt.
   resolve_timeout: '5m'
-
-receivers:
-- name: 'webhook'
-  webhook_configs:
-  - send_resolved: true
-    url: 'http://rocketchat-rocket-chat.apps.ocp4cluster.example.com/hooks/yozbsYLP7GEDAsYRf/8xbtphm8M3q5Yh4DJcfH3pdKBd27wMBN9W65GHjZZjzG8jtL'
 
 # The root route on which each incoming alert enters.
 route:
   # The root route must not have any matchers as it is the entry point for
   # all alerts. It needs to have a receiver configured so alerts that do not
   # match any of the sub-routes are sent to someone.
-  receiver: 'webhook'
+  # The following is a default receiver
+  receiver: 'default-receiver'
 
   # The labels by which incoming alerts are grouped together. For example,
   # multiple alerts coming in for cluster=A and alertname=LatencyHigh would
   # be batched into a single group.
-  group_by: ['alertname', 'cluster']
+  group_by: ['alertname', 'cluster', 'job']
 
   # When the first notification was sent, wait 'group_interval' to send a batch
   # of new alerts that started firing for that group.
@@ -325,7 +323,30 @@ route:
 
   # If an alert has successfully been sent, wait 'repeat_interval' to
   # resend them.
-  repeat_interval: 3h
+  repeat_interval: 12h
+  #
+  # All the above attributes are inherited by all child routers and can be
+  # overwritten on each.
+  #
+  # The child route trees.
+  # All alerts that do not match the following child routes
+  # will remain at the root node and be dispatched to 'default-receiver'.
+  routes:
+  - match:
+      alertname: 'Watchdog'
+    repeat_interval: 5m
+    receiver: 'watchdog'
+
+# A list of notification receivers.
+receivers:
+  # https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver
+- name: 'default-receiver'
+  webhook_configs:
+    # Whether or not to notify about resolved alerts.
+  - send_resolved: true
+    # The endpoint to send HTTP POST requests to.
+    url: 'http://rocketchat-rocket-chat.apps.ocp4cluster.example.com/hooks/yozbsYLP7GEDAsYRf/8xbetphm8M3q5Yh4DJcfH3pdKBd27wMBN9W65GHjZZjzG8jtL'
+- name: 'watchdog'
 ----
 +
 . Replace the default secret with your own:
