@@ -651,8 +651,8 @@ p.tableblock.header { color: #6d6e71; }
 <div class="details">
 <span id="author" class="author">Francesco Minafra</span><br>
 <span id="email" class="email"><a href="mailto:francesco.minafra@redhat.com">francesco.minafra@redhat.com</a></span><br>
-<span id="revnumber">version 4d3dc09,</span>
-<span id="revdate">Tue Apr 7 23:18:34 2020 +0200</span>
+<span id="revnumber">version 850f4b6,</span>
+<span id="revdate">Thu Apr 9 21:13:19 2020 +0200</span>
 </div>
 <div id="toc" class="toc2">
 <div id="toctitle">Table of Contents</div>
@@ -1092,25 +1092,23 @@ can see the secret by running <code>oc get secret alertmanager-main</code>.</p>
 <div class="listingblock">
 <div class="content">
 <pre class="rouge highlight nowrap"><code data-lang="sh">global:
+  <span class="c"># ResolveTimeout is the default value used by alertmanager if the alert does</span>
+  <span class="c"># not include EndsAt, after this time passes it can declare the alert as resolved if it has not been updated.</span>
+  <span class="c"># This has no impact on alerts from Prometheus, as they always include EndsAt.</span>
   resolve_timeout: <span class="s1">'5m'</span>
-
-receivers:
-- name: <span class="s1">'webhook'</span>
-  webhook_configs:
-  - send_resolved: <span class="nb">true
-    </span>url: <span class="s1">'http://rocketchat-rocket-chat.apps.ocp4cluster.example.com/hooks/yozbsYLP7GEDAsYRf/8xbtphm8M3q5Yh4DJcfH3pdKBd27wMBN9W65GHjZZjzG8jtL'</span>
 
 <span class="c"># The root route on which each incoming alert enters.</span>
 route:
   <span class="c"># The root route must not have any matchers as it is the entry point for</span>
   <span class="c"># all alerts. It needs to have a receiver configured so alerts that do not</span>
   <span class="c"># match any of the sub-routes are sent to someone.</span>
-  receiver: <span class="s1">'webhook'</span>
+  <span class="c"># The following is a default receiver</span>
+  receiver: <span class="s1">'default-receiver'</span>
 
   <span class="c"># The labels by which incoming alerts are grouped together. For example,</span>
   <span class="c"># multiple alerts coming in for cluster=A and alertname=LatencyHigh would</span>
   <span class="c"># be batched into a single group.</span>
-  group_by: <span class="o">[</span><span class="s1">'alertname'</span>, <span class="s1">'cluster'</span><span class="o">]</span>
+  group_by: <span class="o">[</span><span class="s1">'alertname'</span>, <span class="s1">'cluster'</span>, <span class="s1">'job'</span><span class="o">]</span>
 
   <span class="c"># When the first notification was sent, wait 'group_interval' to send a batch</span>
   <span class="c"># of new alerts that started firing for that group.</span>
@@ -1125,8 +1123,46 @@ route:
 
   <span class="c"># If an alert has successfully been sent, wait 'repeat_interval' to</span>
   <span class="c"># resend them.</span>
-  repeat_interval: 3h</code></pre>
+  repeat_interval: 12h
+  <span class="c">#</span>
+  <span class="c"># All the above attributes are inherited by all child routers and can be</span>
+  <span class="c"># overwritten on each.</span>
+  <span class="c">#</span>
+  <span class="c"># The child route trees.</span>
+  <span class="c"># All alerts that do not match the following child routes</span>
+  <span class="c"># will remain at the root node and be dispatched to 'default-receiver'.</span>
+  routes:
+  - match:
+      alertname: <span class="s1">'Watchdog'</span>
+    repeat_interval: 5m
+    receiver: <span class="s1">'watchdog'</span>
+
+<span class="c"># A list of notification receivers.</span>
+receivers:
+  <span class="c"># https://prometheus.io/docs/operating/integrations/#alertmanager-webhook-receiver</span>
+- name: <span class="s1">'default-receiver'</span>
+  webhook_configs:
+    <span class="c"># Whether or not to notify about resolved alerts.</span>
+  - send_resolved: <span class="nb">true</span>
+    <span class="c"># The endpoint to send HTTP POST requests to.</span>
+    url: <span class="s1">'http://rocketchat-rocket-chat.apps.ocp4cluster.example.com/hooks/yozbsYLP7GEDAsYRf/8xbetphm8M3q5Yh4DJcfH3pdKBd27wMBN9W65GHjZZjzG8jtL'</span>
+- name: <span class="s1">'watchdog'</span></code></pre>
 </div>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>If you want to direct the Watchdog alerts to Rocket.Chat instead of
+an empty receiver, just change <code>receiver: 'default-receiver'</code> in the Watchdog route.</p>
+</div>
+</td>
+</tr>
+</table>
 </div>
 </li>
 </ul>
@@ -1172,8 +1208,8 @@ as documented in the <a href="https://prometheus.io/docs/alerting/configuration"
 </div>
 <div id="footer">
 <div id="footer-text">
-Version 4d3dc09<br>
-Last updated 2020-04-07 13:27:03 +0200
+Version 850f4b6<br>
+Last updated 2020-04-10 22:26:12 +0200
 </div>
 </div>
 <style>

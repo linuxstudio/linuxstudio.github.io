@@ -349,6 +349,12 @@ receivers:
 - name: 'watchdog'
 ----
 +
+[NOTE]
+====
+If you want to direct the Watchdog alerts to Rocket.Chat instead of
+an empty receiver, just change `receiver: 'default-receiver'` in the Watchdog route.
+====
++
 . Replace the default secret with your own:
 +
 [source%nowrap,sh]
